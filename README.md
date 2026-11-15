@@ -1,0 +1,56 @@
+# ❄️ Typefall
+
+타자를 치면 **화면 전체에 눈, 별가루, 크리스마스 폭죽이 내리는** 작은 앱입니다.
+*Snow, stardust and Christmas fireworks that fall across your screen while you type.*
+
+- **눈 / 별가루** — 위에서 아래로 떨어집니다. 타자가 빠를수록 더 많이 내리고, 멈추면 새로 생기지 않습니다.
+- **효과 색상** — 기본 + 파스텔 5가지(핑크, 민트, 라벤더, 피치, 스카이)
+- **파티클 양** — 하 / 중하 / 중 / 중상(기본) / 상
+- **크리스마스 효과** *(선택, 기본 꺼짐)* — "크리스마스" 또는 "christmas"를 입력하면 빨강·초록 폭죽과 이모지가 쏟아집니다.
+
+## 설치
+
+### macOS (Homebrew)
+```bash
+brew install --cask su-ram/typefall/typefall
+open -a Typefall
+```
+처음 실행하면 **시스템 설정 → 개인정보 보호 및 보안 → 입력 모니터링**에서 Typefall을 켜 주세요.
+요구 사항: macOS 13 이상 (Apple Silicon / Intel).
+
+### Chrome 확장
+`chrome://extensions` → 개발자 모드 → "압축해제된 확장 프로그램을 로드" → `chrome/` 폴더 선택.
+(웹 스토어 등록 예정)
+
+### Windows
+준비 중입니다. (Electron + 같은 효과 엔진 `shared/typefall-core.js`)
+
+## 개인정보
+
+- 키 **내용**은 읽거나 저장하지 않으며, 네트워크로 아무것도 전송하지 않습니다. 앱은 입력 **횟수**만 셉니다.
+- 크리스마스 효과를 켜면, 해당 단어의 **키 순서를 어디까지 눌렀는지(진행 상태)** 만 메모리에서 확인합니다. 입력한 글자를 저장하지 않으며, 끄면 키 내용을 아예 보지 않습니다.
+- Chrome 확장은 비밀번호 입력창에서는 아무것도 하지 않고, iframe의 키 코드를 상위 페이지로 전달하지 않습니다.
+- 맥 앱은 읽기 전용 이벤트 탭(`CGEventTap`, listen-only)을 사용합니다. 코드는 모두 이 저장소에 있습니다.
+
+## 소스에서 빌드 (macOS)
+
+```bash
+cd macos
+./build.sh          # build/Typefall.app (유니버설)
+./package.sh 0.1.0  # dist/Typefall-0.1.0.zip + sha256
+```
+
+> 릴리스 빌드는 ad-hoc 서명이며 Apple 공증을 받지 않았습니다. 공증 빌드는 추후 제공 예정입니다.
+
+## 구조
+
+| 폴더 | 내용 |
+|---|---|
+| `macos/` | 메뉴바 앱 (Swift, AppKit + Core Animation) |
+| `chrome/` | Chrome 확장 (MV3) |
+| `shared/typefall-core.js` | 효과 엔진 (캔버스 2D, 의존성 없음) — Chrome 확장과 향후 Windows 앱이 공유 |
+| `tools/` | 아이콘 생성기, 엔진 테스트 (`node tools/test-core.js`) |
+
+## 라이선스
+
+[MIT](LICENSE)

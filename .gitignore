@@ -1,0 +1,14 @@
+.DS_Store
+node_modules/
+build/
+dist/
+*.vsix
+*.icns.tmp
+AppIcon.iconset/
+
+# 이전 컨셉(캐릭터) 시안과 개발용 파일 — 저장소에 올리지 않음
+vscode/
+shared/typecat-core.js
+shared/preview.html
+fireworks.html
+homebrew-typefall/
