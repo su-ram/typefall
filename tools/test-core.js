@@ -34,8 +34,8 @@ const sim = (mode, extra = {}) => {
 };
 { const r = sim('snow'); check('눈 최대 개수(≤70)', r.peak, (v) => v > 0 && v <= 70); check('눈 NaN 없음', r.bad, false); check('방치 후 active=false', r.tf.active, false); }
 { const r = sim('stars'); check('별가루 최대(별50+가루160 이하)', r.peak, (v) => v > 0 && v <= 210); check('별 NaN 없음', r.bad, false); check('방치 후 active=false', r.tf.active, false); }
-{ const r = sim('stars', { density: 'high' }); check('상 단계 최대(≤336)', r.peak, (v) => v <= 336); }
-{ const r = sim('stars', { density: 'low' }); check('하 단계가 더 적음', r.peak, (v) => v <= 53); }
+{ const r = sim('stars', { density: 'xl' }); check('아주 많이 단계 최대(≤504)', r.peak, (v) => v <= 504); }
+{ const r = sim('stars', { density: 'xs' }); check('아주 조금 단계가 훨씬 적음(≤65)', r.peak, (v) => v <= 65); }
 { const tf = new T.Typefall({ W: 1200, H: 800, dpr: 1, createCanvas }); tf.setOptions({ mode: 'off', xmas: true });
   let t = 0, peak = 0;
   for (const c of 'KeyZ KeyM KeyF KeyL KeyT KeyM KeyA KeyK KeyT KeyM'.split(' ')) { tf.hit(t += 100); tf.key(c); }
@@ -57,5 +57,8 @@ check('레인보우 = 파스텔 6색 배열', Array.isArray(T.TINTS.rainbow) && 
   check('레인보우 시뮬레이션 정상', tf.starsF.count > 0, true); }
 { const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ tint: 'mint' });
   check('단색은 눈 스프라이트 1개', tf.spr.dots.length, 1); }
+check('예전 id 변환(midhigh→m, high→l, low→xs)', [T.normDensity('midhigh'), T.normDensity('high'), T.normDensity('low')].join(), 'm,l,xs');
+check('알 수 없는 값은 기본(m)', T.normDensity('???'), 'm');
+check('기본 배율 = 1.0(보통)', T.DENSITY.m, 1);
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exit(fails ? 1 : 0);

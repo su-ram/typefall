@@ -14,7 +14,7 @@ const SELFTEST = argVal('--selftest');
 const OUT_DIR = argVal('--out') || path.join(process.cwd(), 'selftest-out');
 
 // ── 설정 ───────────────────────────────────────────────────────────────
-const DEFAULTS = { mode: 'snow', tint: 'default', density: 'midhigh', xmas: true, loginInit: false };
+const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, loginInit: false };
 let settings = { ...DEFAULTS };
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
@@ -23,7 +23,7 @@ function loadSettings() {
     const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
     if (['off', 'snow', 'stars'].includes(s.mode)) settings.mode = s.mode;
     if (s.tint in core.TINTS) settings.tint = s.tint;
-    if (s.density in core.DENSITY) settings.density = s.density;
+    settings.density = core.normDensity(s.density);   // 예전 값(low/midlow/…)은 같은 양의 새 값으로 변환
     if (typeof s.xmas === 'boolean') settings.xmas = s.xmas;
     if (typeof s.loginInit === 'boolean') settings.loginInit = s.loginInit;
   } catch (_) { /* 처음 실행이거나 손상 → 기본값 */ }
@@ -37,13 +37,13 @@ const KO = (app.getLocale() || 'en').toLowerCase().startsWith('ko');
 const T = KO ? {
   effect: '화면 효과', modes: { off: '끄기', snow: '눈', stars: '별가루' },
   tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이', rainbow: '레인보우' },
-  density: '파티클 양', densities: { low: '하', midlow: '중하', mid: '중', midhigh: '중상', high: '상' },
+  density: '파티클 양', densities: { xs: '아주 조금', s: '조금', m: '보통', l: '많이', xl: '아주 많이' },
   xmas: '크리스마스 효과 ("크리스마스" 입력 시)', xmasPreview: '크리스마스 효과 미리보기',
   login: '로그인 시 자동 실행', quit: '종료',
 } : {
   effect: 'Effect', modes: { off: 'Off', snow: 'Snow', stars: 'Stardust' },
   tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', yellow: 'Yellow', sky: 'Sky', rainbow: 'Rainbow' },
-  density: 'Particle amount', densities: { low: 'Low', midlow: 'Medium-low', mid: 'Medium', midhigh: 'Medium-high', high: 'High' },
+  density: 'Particle amount', densities: { xs: 'Very little', s: 'A little', m: 'Normal', l: 'A lot', xl: 'Very many' },
   xmas: 'Christmas effect (when you type "christmas")', xmasPreview: 'Preview Christmas effect',
   login: 'Launch at login', quit: 'Quit',
 };
@@ -134,7 +134,7 @@ async function selftest(kind, outDir) {
   await win.loadFile(path.join(__dirname, 'overlay.html'), { query: { bg: '1b2a41' } });
   const send = (m) => win.webContents.send('tf', m);
   const tint = argVal('--tint') || 'default';
-  send({ type: 'options', options: { mode: kind === 'xmas' ? 'off' : kind, tint, density: argVal('--density') || 'midhigh', xmas: kind === 'xmas' } });
+  send({ type: 'options', options: { mode: kind === 'xmas' ? 'off' : kind, tint, density: argVal('--density') || 'm', xmas: kind === 'xmas' } });
   const timer = setInterval(() => send({ type: 'hit' }), 100);        // 초당 10타
   if (kind === 'xmas') setTimeout(() => send({ type: 'xmas' }), 300);
   const snap = async (name) => { const img = await win.webContents.capturePage(); fs.writeFileSync(path.join(outDir, name), img.toPNG()); console.log('saved', name); };

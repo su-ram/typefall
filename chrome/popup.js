@@ -1,8 +1,9 @@
-const DEFAULTS = { mode: 'snow', tint: 'default', density: 'midhigh', xmas: true };
+const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true };
+const LEGACY_DENSITY = { low: 'xs', midlow: 's', mid: 's', midhigh: 'm', high: 'l' }; // 이전 버전에서 저장된 값
 chrome.storage.sync.get(DEFAULTS, (v) => {
   for (const k of Object.keys(DEFAULTS)) {
     const el = document.getElementById(k);
-    if (el.type === 'checkbox') el.checked = v[k]; else el.value = v[k];
+    if (el.type === 'checkbox') el.checked = v[k]; else el.value = (k === 'density' && LEGACY_DENSITY[v[k]]) || v[k];
     el.addEventListener('change', () => chrome.storage.sync.set({ [k]: el.type === 'checkbox' ? el.checked : el.value }));
   }
 });

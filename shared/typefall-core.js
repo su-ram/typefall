@@ -16,8 +16,11 @@
   /** 효과 색상(눈 + 별가루 공통). null = 기본(별: 금/연노랑/핑크/하늘, 눈: 옅은 하늘색), 배열 = 입자마다 무작위로 섞어 씀 */
   const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF',
     rainbow: ['#FFB3D1', '#FFD1B3', '#FFE08A', '#B5EAD7', '#B3DEFF', '#C7B8FF'] }; // 핑크·피치·노랑·민트·스카이·라벤더
-  /** 파티클 양 단계. 기준(기본) = midhigh(중상) = 1.0, 높을수록 많아진다. */
-  const DENSITY = { low: 0.25, midlow: 0.5, mid: 0.75, midhigh: 1.0, high: 1.6 };
+  /** 파티클 양 단계(아주 조금/조금/보통/많이/아주 많이). 기준(기본) = m(보통) = 1.0, 높을수록 많아진다. */
+  const DENSITY = { xs: 0.3, s: 0.6, m: 1.0, l: 1.6, xl: 2.4 };
+  /** 0.1.2 이하에서 저장된 id → 같은 양의 새 id */
+  const DENSITY_LEGACY = { low: 'xs', midlow: 's', mid: 's', midhigh: 'm', high: 'l' };
+  const normDensity = (d) => (DENSITY[d] !== undefined ? d : (DENSITY_LEGACY[d] || 'm'));
 
   const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   const rgba = (rgb, a) => `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
@@ -244,7 +247,7 @@
     constructor(o = {}) {
       this.createCanvas = o.createCanvas || ((w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; });
       this.W = o.W || 800; this.H = o.H || 600; this.dpr = o.dpr || 1;
-      this.opts = { mode: 'snow', tint: 'default', density: 'midhigh', xmas: false };
+      this.opts = { mode: 'snow', tint: 'default', density: 'm', xmas: false };
       this.tracker = new TypingTracker(); this.word = new WordTrigger();
       this.snow = new Falling(false); this.starsF = new Falling(true); this.xmas = new Christmas();
       this.spr = buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint]);
@@ -276,7 +279,7 @@
       dt = Math.min(dt, 0.1);
       this.tracker.update(now === undefined ? performance.now() : now);
       const lv = this.tracker.level, idle = this.tracker.idle;
-      const den = DENSITY[this.opts.density] || 1, m = this.opts.mode;
+      const den = DENSITY[normDensity(this.opts.density)] || 1, m = this.opts.mode;
       this.snow.step(dt, m === 'snow' && !idle ? lerp(1, 5, lv) * den : 0, this.W, this.H, den, this.spr.dots, []);
       this.starsF.step(dt, m === 'stars' && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, this.spr.stars, this.spr.specks);
       this.xmas.update(dt, this.W, this.H, this.spr);
@@ -288,7 +291,7 @@
     }
   }
 
-  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, TINTS, DENSITY, XMAS_PATTERNS };
+  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Typefall = api;
 })(typeof self !== 'undefined' ? self : this);

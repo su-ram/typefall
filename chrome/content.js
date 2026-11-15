@@ -5,7 +5,7 @@
   const TF = self.Typefall;
   const isTop = window.top === window;
   const IGNORE = new Set(['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight', 'CapsLock', 'Tab', 'Escape']);
-  const DEFAULTS = { mode: 'snow', tint: 'default', density: 'midhigh', xmas: true };
+  const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true };
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let settings = { ...DEFAULTS };
 

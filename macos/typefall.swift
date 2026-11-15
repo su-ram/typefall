@@ -269,8 +269,10 @@ final class ChristmasFX {
     }
 }
 
-/// 파티클 양 단계 (눈/별가루 생성 속도와 최대 개수에 곱해짐). 기준(기본) = 중상 = 1.0, 높을수록 많아진다.
-let fxDensities: [(String, Double)] = [("하", 0.25), ("중하", 0.5), ("중", 0.75), ("중상", 1.0), ("상", 1.6)]
+/// 파티클 양 단계 (눈/별가루 생성 속도와 최대 개수에 곱해짐). 기준(기본) = "보통" = 1.0, 높을수록 많아진다.
+let fxDensities: [(String, Double)] = [("아주 조금", 0.3), ("조금", 0.6), ("보통", 1.0), ("많이", 1.6), ("아주 많이", 2.4)]
+/// 이전 버전(0.1.2 이하)에서 저장된 이름 → 같은 양의 새 이름
+let fxDensityLegacy: [String: String] = ["하": "아주 조금", "중하": "조금", "중": "조금", "중상": "보통", "상": "많이"]
 
 final class ScreenFX {
     var windows: [NSWindow] = []
@@ -499,6 +501,11 @@ final class App: NSObject, NSApplicationDelegate {
         if let m = defaults.string(forKey: "fxMode") { return m }
         return defaults.bool(forKey: "fxStars") ? "stars" : (defaults.bool(forKey: "fxSnow") ? "snow" : "off")
     }
+    /// 저장된 파티클 양 이름 (예전 이름이면 새 이름으로 변환)
+    var densityName: String {
+        let raw = defaults.string(forKey: "fxDensity") ?? "보통"
+        return fxDensityLegacy[raw] ?? raw
+    }
     func applyFx() {
         let m = fxMode
         let wantSnow = m == "snow", wantStars = m == "stars", wantXmas = xmasOn
@@ -507,7 +514,7 @@ final class App: NSObject, NSApplicationDelegate {
         if !xmasOn { word.reset() }
         let name = defaults.string(forKey: "fxTint") ?? "기본"
         fx.tint = fxTints.first(where: { $0.0 == name })?.1
-        let den = defaults.string(forKey: "fxDensity") ?? "중상"
+        let den = densityName
         fx.density = fxDensities.first(where: { $0.0 == den })?.1 ?? 1.0
         if structureChanged { fx.rebuild() }   // 색상·파티클 양은 즉시 반영만 하고 입자는 유지
         updateIcon()
@@ -556,7 +563,7 @@ final class App: NSObject, NSApplicationDelegate {
         m.addItem(xp)
         m.addItem(.separator())
         let denMenu = NSMenu()
-        let curDen = defaults.string(forKey: "fxDensity") ?? "중상"
+        let curDen = densityName
         for (name, _) in fxDensities {
             let i = NSMenuItem(title: name, action: #selector(pickDensity(_:)), keyEquivalent: "")
             i.target = self; i.representedObject = name; i.state = name == curDen ? .on : .off
