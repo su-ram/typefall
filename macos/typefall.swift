@@ -37,21 +37,21 @@ func hex(_ v: UInt32) -> CGColor {
 }
 
 /// 눈/별가루: 위에서 생성되어 아래로만 떨어진다 (레이어 좌표는 y가 위로 증가 → 아래로 = y 감소)
-enum FallKind: String, CaseIterable { case snow, stars, clover, leaves, sakura, bubble, paws }
+enum FallKind: String, CaseIterable { case snow, stars, clover, leaves, sakura, bubble, paws, money, cherry, sports, fastfood }
 
 final class SnowField {
-    final class Flake { let layer = CALayer(); let glint = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0, rot0 = 0.0, tw = 0.0, d = 0.0, age = 0.0, ttl = 0.0, alpha = 1.0 }
+    final class Flake { let layer = CALayer(); let glint = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0, rot0 = 0.0, tw = 0.0, d = 0.0, age = 0.0, alpha = 1.0, popT: Double? = nil }
     final class Dust { let layer = CALayer(); var y = 0.0, vy = 0.0, life = 0.0, maxLife = 1.0, alpha = 1.0 }
     let root = CALayer()
     let size: CGSize
     let kind: FallKind       // stars: 반짝이는 별가루(회전 + 깜빡임 + 윤슬 + 꼬리 가루), snow: 눈송이, clover/leaves/sakura: 자연물
     var stars: Bool { kind == .stars }
     /// 종류별 설정 — shared/typefall-core.js 의 FALL 과 같은 값.
-    /// ttl = 수명(초), fade = 나타나고 사라지는 시간, pop = 사라질 때 커지며 터짐
+    /// fade = 나타나는 시간(초), popAt = 화면 높이의 이 비율까지 내려오면 커지며 터짐
     struct Cfg {
         var max: Int, size: ClosedRange<Double>, vy: ClosedRange<Double>, drift: ClosedRange<Double>, spin: ClosedRange<Double>
         var alpha: ClosedRange<Double> = 0.55...0.95
-        var rot = false, flip = false, ttl: ClosedRange<Double>? = nil, fade = 0.0, pop = false
+        var rot = false, flip = false, fade = 0.0, popAt: Double? = nil
     }
     var cfg: Cfg {
         switch kind {
@@ -60,7 +60,11 @@ final class SnowField {
         case .clover: return Cfg(max: 40, size: 11...18, vy: 40...80, drift: 15...30, spin: -1...1, rot: true)
         case .leaves: return Cfg(max: 40, size: 16...28, vy: 50...95, drift: 30...60, spin: -2...2, rot: true, flip: true)
         case .sakura: return Cfg(max: 70, size: 9...16, vy: 30...60, drift: 25...50, spin: -1.5...1.5, rot: true, flip: true)
-        case .bubble: return Cfg(max: 30, size: 14...30, vy: 25...55, drift: 20...40, spin: 0...0, alpha: 0.6...0.95, ttl: 2.5...7, fade: 0.25, pop: true)
+        case .bubble: return Cfg(max: 30, size: 14...30, vy: 25...55, drift: 20...40, spin: 0...0, alpha: 0.6...0.95, fade: 0.25, popAt: 0.9)
+        case .money: return Cfg(max: 40, size: 20...32, vy: 50...95, drift: 30...60, spin: -1.5...1.5, rot: true, flip: true)
+        case .sports: return Cfg(max: 30, size: 16...26, vy: 45...90, drift: 10...25, spin: -2...2, rot: true)
+        case .fastfood: return Cfg(max: 30, size: 18...28, vy: 45...90, drift: 15...35, spin: -1.5...1.5, rot: true)
+        case .cherry: return Cfg(max: 35, size: 16...26, vy: 45...90, drift: 15...35, spin: -1.5...1.5, rot: true)
         case .paws: return Cfg(max: 40, size: 14...24, vy: 40...80, drift: 8...20, spin: -0.3...0.3, alpha: 0.6...0.9, rot: true)
         }
     }
@@ -86,7 +90,6 @@ final class SnowField {
             f.alpha = Double.random(in: c.alpha); f.layer.opacity = Float(f.alpha)
             f.x = Double.random(in: 0...Double(size.width))
             f.y = Double(size.height) + 10 // 화면 맨 위
-            if let r = c.ttl { f.ttl = Double.random(in: r) }
             f.vy = Double.random(in: c.vy)
             f.phase = Double.random(in: 0...6.28); f.drift = Double.random(in: c.drift)
             f.spin = Double.random(in: c.spin); f.tw = Double.random(in: 2...5.5)
@@ -95,31 +98,35 @@ final class SnowField {
             root.addSublayer(f.layer); flakes.append(f)
         }
         flakes.removeAll { f in
+            if let pt = f.popT {   // 터지는 중: 제자리에서 커지며 사라짐
+                f.popT = pt + dt
+                if pt + dt >= 0.2 { f.layer.removeFromSuperlayer(); return true }
+                let k = (pt + dt) / 0.2
+                f.layer.opacity = Float(f.alpha * (1 - k)); f.layer.transform = CATransform3DMakeScale(CGFloat(1 + 0.6 * k), CGFloat(1 + 0.6 * k), 1)
+                return false
+            }
             f.y -= f.vy * dt
             f.x += sin(t * 0.8 + f.phase) * f.drift * dt
             let c = cfg
             f.age += dt
-            if f.ttl > 0 && f.age > f.ttl { f.layer.removeFromSuperlayer(); return true }
+            if let pa = c.popAt, f.y <= Double(size.height) * (1 - pa) { f.popT = 0 }
             f.layer.position = CGPoint(x: f.x, y: f.y)
-            if natural { // 회전 (+ 뒤집히며 팔랑), 수명이 있으면 나타나고 사라지기 (방울은 터지듯 커짐)
-                var a = f.alpha, sc = 1.0
-                if f.ttl > 0 {
-                    let inK = min(1, max(0, f.age / c.fade)), outK = min(1, max(0, (f.ttl - f.age) / c.fade))
-                    a *= inK * outK; if c.pop { sc = 1 + 0.5 * (1 - outK) }
-                }
+            if natural && f.popT == nil { // 회전 (+ 뒤집히며 팔랑), 나타날 때 서서히 (fade)
+                var a = f.alpha
+                if c.fade > 0 { a *= min(1, max(0, f.age / c.fade)) }
                 f.layer.opacity = Float(a)
                 var tr = c.rot ? CATransform3DMakeRotation(CGFloat(f.rot0 + t * f.spin * 0.5), 0, 0, 1) : CATransform3DIdentity
                 if c.flip { tr = CATransform3DScale(tr, CGFloat(max(0.2, abs(cos(t * 1.6 + f.phase)))), 1, 1) }
-                f.layer.transform = sc == 1 ? tr : CATransform3DScale(tr, CGFloat(sc), CGFloat(sc), 1)
+                f.layer.transform = tr
             }
             if stars { // 반짝임 + 회전
                 f.layer.opacity = Float(0.55 + 0.4 * sin(t * 4 + f.phase))
                 f.layer.transform = CATransform3DMakeRotation(CGFloat(t * f.spin + f.phase), 0, 0, 1)
                 // 윤슬: 가끔 짧게 번쩍이는 흰 십자
-                let g = pow(max(0, sin(t * f.tw + f.phase * 3)), 14), s = f.d * (1.3 + 1.7 * g)
+                let g = pow(max(0, sin(t * f.tw + f.phase * 3)), 24), s = f.d * (1 + 0.5 * g)   // 아주 짧고 은은하게
                 f.glint.bounds = CGRect(x: 0, y: 0, width: s, height: s)
                 f.glint.position = CGPoint(x: f.d / 2, y: f.d / 2)
-                f.glint.opacity = Float(g)
+                f.glint.opacity = Float(0.45 * g)
                 // 꼬리: 별 뒤로 작은 가루를 흘린다
                 if !trail.isEmpty && dust.count < maxDust && Double.random(in: 0...1) < dt * 5 {
                     let p = Dust(); let d = Double.random(in: 3...7)
@@ -442,31 +449,183 @@ final class ScreenFX {
             c.addCurve(to: pt(0, 15), control1: pt(13, -8), control2: pt(13, 8)); c.addCurve(to: pt(0, -17), control1: pt(-13, 8), control2: pt(-13, -8))
             c.closePath(); c.fillPath(); vein(c)
         } }
-        let leaves = [maple(0xE8501A), maple(0xF08A24), maple(0xD9342B), maple(0xF2B233), oval(0xC8741F), oval(0xE8A42A), oval(0xA8501A)]
+        func ginkgo(_ rgb: UInt32) -> CGImage { makeImage(40) { c in   // 은행잎: 부채꼴, 윗부분 가운데가 살짝 갈라짐
+            c.translateBy(x: 20, y: 20); c.setFillColor(hex(rgb)); c.beginPath(); c.move(to: pt(0, 17)); c.addLine(to: pt(-15, -6))
+            c.addCurve(to: pt(0, -9), control1: pt(-16, -14), control2: pt(-6, -17)); c.addCurve(to: pt(15, -6), control1: pt(6, -17), control2: pt(16, -14))
+            c.closePath(); c.fillPath()
+            c.setStrokeColor(CGColor(srgbRed: 0.47, green: 0.31, blue: 0, alpha: 0.35)); c.setLineWidth(1); c.beginPath()
+            for vx in [-9.0, -4.5, 0.0, 4.5, 9.0] { c.move(to: pt(0, 16)); c.addLine(to: pt(CGFloat(vx), -8)) }
+            c.strokePath()
+        } }
+        let leaves = [maple(0xE8501A), maple(0xF08A24), maple(0xD9342B), maple(0xF2B233), oval(0xC8741F), oval(0xE8A42A), oval(0xA8501A),
+                      ginkgo(0xF2C94C), ginkgo(0xE8B923), ginkgo(0xF5D76E)]
         let petals = [(0xFF9DBB, 0xFFE3EC), (0xFFB3CB, 0xFFF0F5), (0xFFC2D6, 0xFFFFFF)].map { (a, b) in makeImage(24) { c in
             c.translateBy(x: 12, y: 12); c.setFillColor(hex(UInt32(a))); c.beginPath(); c.move(to: pt(0, 10))
             c.addCurve(to: pt(-2, -11), control1: pt(-9, 4), control2: pt(-8, -9)); c.addLine(to: pt(0, -8)); c.addLine(to: pt(2, -11))
             c.addCurve(to: pt(0, 10), control1: pt(8, -9), control2: pt(9, 4)); c.closePath(); c.fillPath()
             glow(c, UInt32(b), 0, -6, 9, 0.9)
         } }
+        // 지폐: 초록·노랑·파랑·분홍
+        func note(_ base: UInt32, _ edge: UInt32) -> CGImage { makeImage(40) { c in
+            c.translateBy(x: 20, y: 20)
+            c.setFillColor(hex(base)); c.addPath(CGPath(roundedRect: CGRect(x: -18, y: -9.5, width: 36, height: 19), cornerWidth: 2, cornerHeight: 2, transform: nil)); c.fillPath()
+            c.setStrokeColor(hex(edge)); c.setLineWidth(1.2); c.addPath(CGPath(roundedRect: CGRect(x: -15.5, y: -7, width: 31, height: 14), cornerWidth: 1.5, cornerHeight: 1.5, transform: nil)); c.strokePath()
+            c.setFillColor(hex(edge)); c.fillEllipse(in: CGRect(x: -5, y: -5, width: 10, height: 10))
+            c.setFillColor(hex(base)); c.fillEllipse(in: CGRect(x: -3.4, y: -3.4, width: 6.8, height: 6.8))
+            c.setFillColor(hex(edge)); c.fill(CGRect(x: -1, y: -2.6, width: 2, height: 5.2))
+            for px in [-12.0, 12.0] { c.fillEllipse(in: CGRect(x: px - 1.6, y: -1.6, width: 3.2, height: 3.2)) }
+        } }
+        let notes = [note(0x8FD19E, 0x3E8E5A), note(0xF5D98A, 0xB9892A), note(0x9CC7F0, 0x3F6FA8), note(0xF2B8C6, 0xB0536B)]
+        // 체리: 두 알이 줄기로 이어지고 잎이 달림
+        let cherry = makeImage(40) { c in
+            c.translateBy(x: 20, y: 20); c.setLineCap(.round); c.setLineJoin(.round)
+            c.setStrokeColor(hex(0x4E7F2E)); c.setLineWidth(1.6); c.beginPath()
+            c.move(to: pt(-6, 6)); c.addCurve(to: pt(4, -14), control1: pt(-7, -4), control2: pt(-2, -11))
+            c.move(to: pt(8, 8)); c.addCurve(to: pt(4, -14), control1: pt(8, -2), control2: pt(7, -9)); c.strokePath()
+            c.setFillColor(hex(0x4CBF5A)); c.setStrokeColor(hex(0x2E8B3E)); c.setLineWidth(1); c.beginPath(); c.move(to: pt(4, -14))
+            c.addCurve(to: pt(17, -14), control1: pt(8, -19), control2: pt(16, -18)); c.addCurve(to: pt(4, -14), control1: pt(13, -9), control2: pt(7, -10)); c.closePath(); c.drawPath(using: .fillStroke)
+            for (cx, cy) in [(-6.0, 9.0), (8.0, 11.0)] {
+                c.setFillColor(hex(0xD81B3A)); c.setStrokeColor(hex(0x9E1128)); c.setLineWidth(1.2)
+                c.addEllipse(in: CGRect(x: cx - 8, y: cy - 8, width: 16, height: 16)); c.drawPath(using: .fillStroke)
+                glow(c, 0xFF8C96, CGFloat(cx - 2.5), CGFloat(cy - 3), 6.5, 0.6)
+                c.setFillColor(CGColor(gray: 1, alpha: 0.6)); c.fillEllipse(in: CGRect(x: cx - 5.2, y: cy - 4.4, width: 4, height: 2.4))
+            }
+        }
+        // 스포츠 공(농구·럭비·야구·테니스를 한 효과로 묶음). 이미지는 y가 위로 증가하므로 반사광은 +y 쪽
+        func ball(_ base: UInt32, _ edge: UInt32, _ details: (CGContext) -> Void) -> CGImage { makeImage(40) { c in
+            c.translateBy(x: 20, y: 20); c.setLineJoin(.round); c.setLineCap(.round)
+            let circle = CGRect(x: -16, y: -16, width: 32, height: 32)
+            c.setFillColor(hex(base)); c.fillEllipse(in: circle)
+            c.saveGState(); c.addEllipse(in: circle); c.clip(); details(c); glow(c, 0xFFFFFF, -6, 7, 13, 0.4); c.restoreGState()
+            c.setStrokeColor(hex(edge)); c.setLineWidth(1.4); c.strokeEllipse(in: circle)
+        } }
+        let basketball = ball(0xF08A24, 0x9A4F0E) { c in
+            c.setStrokeColor(hex(0x3A2210)); c.setLineWidth(1.5)
+            c.beginPath(); c.move(to: pt(0, -16)); c.addLine(to: pt(0, 16)); c.move(to: pt(-16, 0)); c.addLine(to: pt(16, 0)); c.strokePath()
+            c.beginPath(); c.addArc(center: pt(-19, 0), radius: 14, startAngle: -1.0, endAngle: 1.0, clockwise: false); c.strokePath()
+            c.beginPath(); c.addArc(center: pt(19, 0), radius: 14, startAngle: .pi - 1.0, endAngle: .pi + 1.0, clockwise: false); c.strokePath()
+        }
+        let rugby = makeImage(40) { c in
+            c.translateBy(x: 20, y: 20); c.setLineJoin(.round); c.setLineCap(.round)
+            func body() { c.beginPath(); c.move(to: pt(-18, 0)); c.addQuadCurve(to: pt(18, 0), control: pt(0, -17)); c.addQuadCurve(to: pt(-18, 0), control: pt(0, 17)); c.closePath() }
+            body(); c.setFillColor(hex(0xA0602E)); c.fillPath()
+            c.saveGState(); body(); c.clip()
+            c.setStrokeColor(hex(0xFFFFFF)); c.setLineWidth(2)
+            for sx in [-11.0, 11.0] { c.beginPath(); c.move(to: pt(CGFloat(sx), -9)); c.addLine(to: pt(CGFloat(sx), 9)); c.strokePath() }
+            glow(c, 0xFFDCAA, -4, 6, 14, 0.4); c.restoreGState()
+            c.setStrokeColor(hex(0xFFFFFF)); c.setLineWidth(1.4); c.beginPath(); c.move(to: pt(-6, 0)); c.addLine(to: pt(6, 0))
+            for tx in [-4.0, -1.3, 1.4, 4.0] { c.move(to: pt(CGFloat(tx), -2.4)); c.addLine(to: pt(CGFloat(tx), 2.4)) }
+            c.strokePath()
+            body(); c.setStrokeColor(hex(0x5E3213)); c.setLineWidth(1.4); c.strokePath()
+        }
+        let baseball = ball(0xF7F4EA, 0xB9B3A0) { c in
+            c.setStrokeColor(hex(0xD32F2F)); c.setLineWidth(1.2)
+            for sgn in [-1.0, 1.0] {
+                let cx = CGFloat(sgn * 17), a0 = CGFloat(sgn < 0 ? -1.05 : Double.pi - 1.05)
+                c.beginPath(); c.addArc(center: pt(cx, 0), radius: 11, startAngle: a0, endAngle: a0 + 2.1, clockwise: false); c.strokePath()
+                for k in 0...6 {   // 바늘땀
+                    let a = a0 + 0.35 * CGFloat(k), px = cx + cos(a) * 11, py = sin(a) * 11, nx = cos(a), ny = sin(a)
+                    c.beginPath(); c.move(to: pt(px - nx * 2.2, py - ny * 2.2)); c.addLine(to: pt(px + nx * 2.2, py + ny * 2.2)); c.strokePath()
+                }
+            }
+        }
+        let tennis = ball(0xD4E84A, 0x8FA21E) { c in
+            c.setStrokeColor(hex(0xFFFFFF)); c.setLineWidth(2.2)
+            c.strokeEllipse(in: CGRect(x: -15 - 17, y: 9 - 17, width: 34, height: 34)); c.strokeEllipse(in: CGRect(x: 15 - 17, y: -9 - 17, width: 34, height: 34))
+        }
+        let sports = [basketball, rugby, baseball, tennis]
+        // 패스트푸드(햄버거·피자·감자튀김·콜라를 한 효과로 묶음). 좌표는 JS 시안과 같게 쓰려고 y 를 뒤집는다
+        func flipped(_ draw: @escaping (CGContext) -> Void) -> CGImage { makeImage(40) { c in c.translateBy(x: 20, y: 20); c.scaleBy(x: 1, y: -1); c.setLineJoin(.round); c.setLineCap(.round); draw(c) } }
+        func rrect(_ c: CGContext, _ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat, _ r: CGFloat, _ fill: UInt32, _ stroke: UInt32, _ lw: CGFloat = 1.1) {
+            c.addPath(CGPath(roundedRect: CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0), cornerWidth: r, cornerHeight: r, transform: nil))
+            c.setFillColor(hex(fill)); c.setStrokeColor(hex(stroke)); c.setLineWidth(lw); c.drawPath(using: .fillStroke)
+        }
+        let burger = flipped { c in
+            rrect(c, -15, 10, 15, 16.5, 3.5, 0xD89445, 0xA86A22)    // 아랫빵
+            rrect(c, -16, 4, 16, 10.5, 3, 0x6B3E26, 0x42240F)       // 패티
+            rrect(c, -14, 2.5, 14, 5.5, 1.5, 0xE8473A, 0xB02A20)    // 토마토
+            c.beginPath(); c.move(to: pt(-15, 1)); for q in [pt(15, 1), pt(15, 3.5), pt(10, 3.5), pt(7, 7.5), pt(4, 3.5), pt(-15, 3.5)] { c.addLine(to: q) }; c.closePath()   // 치즈
+            c.setFillColor(hex(0xFFD23F)); c.setStrokeColor(hex(0xD9A416)); c.setLineWidth(1.1); c.drawPath(using: .fillStroke)
+            c.beginPath(); c.move(to: pt(-17, -1.5))                  // 양상추(물결)
+            for i in 0..<6 { c.addQuadCurve(to: pt(CGFloat(-17 + (i + 1) * 6), -1.5), control: pt(CGFloat(-17 + i * 6 + 3), i % 2 == 1 ? -4.5 : 3.5)) }
+            c.addLine(to: pt(17, 1.5)); c.addLine(to: pt(-17, 1.5)); c.closePath()
+            c.setFillColor(hex(0x6CC24A)); c.setStrokeColor(hex(0x3F8E28)); c.drawPath(using: .fillStroke)
+            c.beginPath(); c.move(to: pt(-16.5, -1)); c.addCurve(to: pt(16.5, -1), control1: pt(-17, -17), control2: pt(17, -17)); c.closePath()   // 윗빵
+            c.setFillColor(hex(0xE8A44E)); c.setStrokeColor(hex(0xA86A22)); c.drawPath(using: .fillStroke)
+            c.saveGState(); c.beginPath(); c.move(to: pt(-16.5, -1)); c.addCurve(to: pt(16.5, -1), control1: pt(-17, -17), control2: pt(17, -17)); c.closePath(); c.clip()
+            glow(c, 0xFFDC96, -5, -11, 10, 0.55); c.restoreGState()
+            c.setFillColor(hex(0xFFF4D6))
+            for (px, py) in [(-7.0, -9.0), (0.0, -12.0), (7.0, -9.0), (-3.0, -6.0), (4.0, -5.5), (-10.0, -5.0)] { c.fillEllipse(in: CGRect(x: px - 1.5, y: py - 0.8, width: 3, height: 1.6)) }   // 참깨
+        }
+        let pizza = flipped { c in
+            c.beginPath(); c.move(to: pt(-15, -9)); c.addLine(to: pt(15, -9)); c.addLine(to: pt(0, 17)); c.closePath()
+            c.setFillColor(hex(0xFFC93C)); c.setStrokeColor(hex(0xD9961A)); c.setLineWidth(1.4); c.drawPath(using: .fillStroke)
+            c.saveGState(); c.beginPath(); c.move(to: pt(-15, -9)); c.addLine(to: pt(15, -9)); c.addLine(to: pt(0, 17)); c.closePath(); c.clip()
+            glow(c, 0xFFEB96, -4, -3, 12, 0.5); c.restoreGState()
+            c.setFillColor(hex(0xD9382B)); c.setStrokeColor(hex(0x9E2018)); c.setLineWidth(1)   // 페퍼로니
+            for (px, py, r) in [(-5.5, -3.0, 4.0), (5.0, -1.0, 3.6), (0.0, 8.0, 3.0)] { c.addEllipse(in: CGRect(x: px - r, y: py - r, width: 2 * r, height: 2 * r)); c.drawPath(using: .fillStroke) }
+            c.setFillColor(hex(0x4CAF50)); for (px, py) in [(-9.0, -6.0), (9.0, -5.0), (2.0, 3.0), (-3.0, 4.0)] { c.fillEllipse(in: CGRect(x: px - 1.8, y: py - 1, width: 3.6, height: 2)) }   // 피망
+            c.beginPath(); c.move(to: pt(-17, -9)); c.addQuadCurve(to: pt(-11, -15), control: pt(-17, -15)); c.addLine(to: pt(11, -15)); c.addQuadCurve(to: pt(17, -9), control: pt(17, -15))
+            c.addQuadCurve(to: pt(14, -6), control: pt(17, -6)); c.addLine(to: pt(-14, -6)); c.addQuadCurve(to: pt(-17, -9), control: pt(-17, -6)); c.closePath()   // 도우 테두리
+            c.setFillColor(hex(0xE3A24F)); c.setStrokeColor(hex(0xA86A22)); c.setLineWidth(1.2); c.drawPath(using: .fillStroke)
+            c.setFillColor(CGColor(gray: 1, alpha: 0.45)); c.fillEllipse(in: CGRect(x: -13, y: -13.7, width: 10, height: 2.4))
+        }
+        let fries = flipped { c in
+            for (sx, top, ang) in [(-8.0, -16.0, -0.25), (-3.0, -18.0, -0.08), (2.0, -17.0, 0.1), (7.0, -15.0, 0.28), (-5.5, -13.0, 0.18), (4.5, -18.5, -0.15)] {   // 감자튀김
+                c.saveGState(); c.translateBy(x: CGFloat(sx), y: 2); c.rotate(by: CGFloat(ang))
+                c.setFillColor(hex(0xFFD54F)); c.setStrokeColor(hex(0xE0A81E)); c.setLineWidth(0.9)
+                c.addRect(CGRect(x: -1.8, y: top - 2, width: 3.6, height: 2 - top)); c.drawPath(using: .fillStroke); c.restoreGState()
+            }
+            c.beginPath(); c.move(to: pt(-11, 1)); c.addLine(to: pt(11, 1)); c.addLine(to: pt(9, 17)); c.addQuadCurve(to: pt(-9, 17), control: pt(0, 19)); c.closePath()   // 빨간 상자
+            c.setFillColor(hex(0xE53935)); c.setStrokeColor(hex(0xA8201D)); c.setLineWidth(1.2); c.drawPath(using: .fillStroke)
+            c.setStrokeColor(hex(0xFFFFFF)); c.setLineWidth(1.8); c.beginPath(); c.addArc(center: pt(0, 7), radius: 4, startAngle: 0.3, endAngle: .pi - 0.3, clockwise: false); c.strokePath()
+            c.setFillColor(CGColor(gray: 1, alpha: 0.28)); c.fillEllipse(in: CGRect(x: -7.9, y: 3, width: 2.8, height: 10))
+        }
+        let cola = flipped { c in
+            c.setStrokeColor(hex(0xE53935)); c.setLineWidth(2.4); c.beginPath(); c.move(to: pt(2, -9)); c.addLine(to: pt(7, -18.5)); c.strokePath()   // 빨대
+            c.setStrokeColor(hex(0xFFFFFF)); c.setLineDash(phase: 0, lengths: [2, 2.2]); c.beginPath(); c.move(to: pt(2, -9)); c.addLine(to: pt(7, -18.5)); c.strokePath(); c.setLineDash(phase: 0, lengths: [])
+            c.beginPath(); c.move(to: pt(-10.5, -6.5)); c.addLine(to: pt(10.5, -6.5)); c.addLine(to: pt(8, 17)); c.addQuadCurve(to: pt(-8, 17), control: pt(0, 18.5)); c.closePath()   // 컵
+            c.setFillColor(hex(0xD9342B)); c.setStrokeColor(hex(0x9E2018)); c.setLineWidth(1.2); c.drawPath(using: .fillStroke)
+            c.setFillColor(hex(0xFFFFFF)); c.beginPath(); c.move(to: pt(-9.8, 1)); c.addLine(to: pt(9.8, 1)); c.addLine(to: pt(8.9, 9)); c.addLine(to: pt(-8.9, 9)); c.closePath(); c.fillPath()   // 흰 띠 + 물결
+            c.setStrokeColor(hex(0xD9342B)); c.setLineWidth(1.6); c.beginPath(); c.move(to: pt(-6, 5.5)); c.addQuadCurve(to: pt(0, 5.5), control: pt(-3, 2.5)); c.addQuadCurve(to: pt(6, 5.5), control: pt(3, 8.5)); c.strokePath()
+            c.beginPath(); c.move(to: pt(-11, -8)); c.addQuadCurve(to: pt(11, -8), control: pt(0, -14.5)); c.closePath()   // 뚜껑
+            c.setFillColor(hex(0xF0F0F0)); c.setStrokeColor(hex(0xA8A8A8)); c.setLineWidth(1); c.drawPath(using: .fillStroke)
+            rrect(c, -12, -9, 12, -6, 0.5, 0xE0E0E0, 0xA8A8A8, 1)
+            c.setFillColor(CGColor(gray: 1, alpha: 0.3)); c.fillEllipse(in: CGRect(x: -7.8, y: 7, width: 2.6, height: 8))
+        }
+        let fastfood = [burger, pizza, fries, cola]
         let glint = makeImage(32) { c in
             glow(c, 0xFFFFFF, 16, 16, 8, 0.5); c.setFillColor(hex(0xFFFFFF)); c.beginPath()
             let pts = [pt(16, 32), pt(17.2, 17.2), pt(32, 16), pt(17.2, 14.8), pt(16, 0), pt(14.8, 14.8), pt(0, 16), pt(14.8, 17.2)]
             c.move(to: pts[0]); for q in pts.dropFirst() { c.addLine(to: q) }; c.closePath(); c.fillPath()
         }
-        let bubbles = [makeImage(32) { c in
-            c.translateBy(x: 16, y: 16); glow(c, 0xBEE6FF, 0, 0, 14, 0.22); c.setLineWidth(1.6)
-            c.setStrokeColor(CGColor(srgbRed: 0.67, green: 0.86, blue: 1, alpha: 0.85)); c.strokeEllipse(in: CGRect(x: -13, y: -13, width: 26, height: 26))
-            c.setStrokeColor(CGColor(srgbRed: 1, green: 0.67, blue: 0.86, alpha: 0.9)); c.beginPath(); c.addArc(center: .zero, radius: 13, startAngle: 0.2, endAngle: 1.4, clockwise: false); c.strokePath()
-            c.setStrokeColor(CGColor(srgbRed: 0.78, green: 1, blue: 0.67, alpha: 0.9)); c.beginPath(); c.addArc(center: .zero, radius: 13, startAngle: .pi + 0.2, endAngle: .pi + 1.4, clockwise: false); c.strokePath()
-            c.setFillColor(CGColor(gray: 1, alpha: 0.9)); c.fillEllipse(in: CGRect(x: -8.2, y: 4.2, width: 6.4, height: 3.6))
-        }]
+        // 방울마다 반사되는 빛(무지개 호 색·각도·하이라이트 위치)이 다르다: (테두리, 호1, 호2, 호 시작각, 하이라이트 각도, 하이라이트 크기)
+        let bubbleStyles: [((CGFloat, CGFloat, CGFloat), (CGFloat, CGFloat, CGFloat), (CGFloat, CGFloat, CGFloat), CGFloat, CGFloat, CGFloat)] = [
+            ((170, 220, 255), (255, 170, 220), (200, 255, 170), 0.2, -2.3, 1),
+            ((190, 190, 255), (255, 235, 150), (160, 240, 255), 1.6, -0.9, 1.25),
+            ((255, 200, 170), (170, 200, 255), (255, 170, 210), 3.0, -3.5, 0.8),
+            ((170, 245, 220), (240, 170, 255), (170, 210, 255), 4.4, 2.2, 1.1),
+            ((255, 240, 190), (170, 235, 235), (220, 190, 255), 0.9, -1.6, 0.9),
+            ((200, 225, 255), (255, 190, 190), (190, 255, 200), 2.4, 0.6, 1.3),
+        ]
+        func rgb255(_ v: (CGFloat, CGFloat, CGFloat), _ a: CGFloat) -> CGColor { CGColor(srgbRed: v.0 / 255, green: v.1 / 255, blue: v.2 / 255, alpha: a) }
+        let bubbles = bubbleStyles.map { (ring, a1, a2, st, hl, hs) in makeImage(32) { c in
+            c.translateBy(x: 16, y: 16)
+            let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [rgb255(ring, 0.22), rgb255(ring, 0)] as CFArray, locations: [0, 1])!
+            c.drawRadialGradient(g, startCenter: .zero, startRadius: 0, endCenter: .zero, endRadius: 14, options: [])
+            c.setLineWidth(1.6)
+            c.setStrokeColor(rgb255(ring, 0.85)); c.strokeEllipse(in: CGRect(x: -13, y: -13, width: 26, height: 26))
+            c.setStrokeColor(rgb255(a1, 0.9)); c.beginPath(); c.addArc(center: .zero, radius: 13, startAngle: st, endAngle: st + 1.2, clockwise: false); c.strokePath()
+            c.setStrokeColor(rgb255(a2, 0.9)); c.beginPath(); c.addArc(center: .zero, radius: 13, startAngle: st + .pi, endAngle: st + .pi + 1.2, clockwise: false); c.strokePath()
+            c.saveGState(); c.translateBy(x: cos(hl) * 7, y: sin(hl) * 7); c.rotate(by: hl + .pi / 2)
+            c.setFillColor(CGColor(gray: 1, alpha: 0.9)); c.fillEllipse(in: CGRect(x: -3.2 * hs, y: -1.8 * hs, width: 6.4 * hs, height: 3.6 * hs)); c.restoreGState()
+        } }
         let paws = [0x8D6E63, 0xF4A6B8, 0x9AA5B1, 0xFFB74D].map { rgb in makeImage(32) { c in
             c.translateBy(x: 16, y: 16); c.setFillColor(hex(UInt32(rgb)))
             c.fillEllipse(in: CGRect(x: -7.5, y: -10, width: 15, height: 12))
             for (x, y) in [(-8.0, 4.0), (-3.0, 9.0), (3.0, 9.0), (8.0, 4.0)] { c.fillEllipse(in: CGRect(x: x - 3, y: y - 3.8, width: 6, height: 7.6)) }
         } }
-        return ([.clover: clovers, .leaves: leaves, .sakura: petals, .bubble: bubbles, .paws: paws], glint)
+        return ([.clover: clovers, .leaves: leaves, .sakura: petals, .bubble: bubbles, .paws: paws, .money: notes, .cherry: [cherry], .sports: sports, .fastfood: fastfood], glint)
     }
 
     static func makeEmoji(_ e: String) -> CGImage {
@@ -602,7 +761,7 @@ final class App: NSObject, NSApplicationDelegate {
             if !ok { fails += 1 }
             print(ok ? "PASS" : "FAIL", "화면 효과 선택=\(name)  체크=\(got)")
         }
-        let xmasTitle = "크리스마스 효과 (\"크리스마스\" 입력 시)"
+        let xmasTitle = "특별 효과"
         func xmasState() -> NSControl.StateValue? { item.menu?.items.first(where: { $0.title == xmasTitle })?.state }
         for _ in 0..<3 {
             let before = xmasState()
@@ -729,7 +888,7 @@ final class App: NSObject, NSApplicationDelegate {
         updateIcon()
     }
     func updateIcon() {
-        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint"][fxMode] ?? "moon.zzz"
+        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint", "money": "banknote", "cherry": "heart.fill", "sports": "basketball", "fastfood": "fork.knife"][fxMode] ?? "moon.zzz"
         // 메뉴바 높이(약 24pt) 안에서 낼 수 있는 가장 큰 크기로 그린다
         let cfg = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
         let img = NSImage(systemSymbolName: sym, accessibilityDescription: "Typefall")?.withSymbolConfiguration(cfg)
@@ -746,7 +905,7 @@ final class App: NSObject, NSApplicationDelegate {
         m.addItem(.separator())
         let fxMenu = NSMenu()
         let curFx = fxMode
-        for (key, title) in [("off", "끄기"), ("snow", "눈"), ("stars", "별가루"), ("clover", "네잎클로버"), ("leaves", "낙엽"), ("sakura", "벚꽃"), ("bubble", "비눗방울"), ("paws", "고양이 발자국")] { // 하나만 선택 가능
+        for (key, title) in [("off", "끄기"), ("snow", "눈"), ("stars", "별가루"), ("clover", "네잎클로버"), ("leaves", "낙엽"), ("sakura", "벚꽃"), ("bubble", "비눗방울"), ("paws", "고양이 발자국"), ("money", "지폐"), ("cherry", "체리"), ("sports", "스포츠 공"), ("fastfood", "패스트푸드")] { // 하나만 선택 가능
             let i = NSMenuItem(title: title, action: #selector(pickFxMode(_:)), keyEquivalent: "")
             i.target = self; i.representedObject = key; i.state = key == curFx ? .on : .off
             fxMenu.addItem(i)
@@ -764,10 +923,10 @@ final class App: NSObject, NSApplicationDelegate {
         let tintItem = NSMenuItem(title: "효과 색상", action: nil, keyEquivalent: ""); tintItem.submenu = tintMenu
         m.addItem(tintItem)
 
-        let xm = NSMenuItem(title: "크리스마스 효과 (\"크리스마스\" 입력 시)", action: #selector(toggleXmas(_:)), keyEquivalent: "")
+        let xm = NSMenuItem(title: "특별 효과", action: #selector(toggleXmas(_:)), keyEquivalent: "")
         xm.target = self; xm.state = xmasOn ? .on : .off
         m.addItem(xm)
-        let xp = NSMenuItem(title: "크리스마스 효과 미리보기", action: #selector(previewXmas), keyEquivalent: "")
+        let xp = NSMenuItem(title: "특별 효과 미리보기", action: #selector(previewXmas), keyEquivalent: "")
         xp.target = self
         m.addItem(xp)
         let keyMenu = NSMenu()

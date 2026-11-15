@@ -2,7 +2,7 @@
 # Typefall.app 빌드(유니버설: arm64 + x86_64):  ./build.sh [버전]   →  build/Typefall.app
 set -e
 cd "$(dirname "$0")"
-VER="${1:-0.1.6}"
+VER="${1:-0.1.7}"
 APP=build/Typefall.app
 rm -rf build && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 for ARCH in arm64 x86_64; do

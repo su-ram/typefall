@@ -36,17 +36,17 @@ function saveSettings() {
 // ── 문구(한국어/영어) ──────────────────────────────────────────────────
 const KO = (app.getLocale() || 'en').toLowerCase().startsWith('ko');
 const T = KO ? {
-  effect: '화면 효과', modes: { off: '끄기', snow: '눈', stars: '별가루', clover: '네잎클로버', leaves: '낙엽', sakura: '벚꽃', bubble: '비눗방울', paws: '고양이 발자국' },
+  effect: '화면 효과', modes: { off: '끄기', snow: '눈', stars: '별가루', clover: '네잎클로버', leaves: '낙엽', sakura: '벚꽃', bubble: '비눗방울', paws: '고양이 발자국', money: '지폐', cherry: '체리', sports: '스포츠 공', fastfood: '패스트푸드' },
   tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이', rainbow: '레인보우' },
   density: '파티클 양', densities: { xs: '아주 조금', s: '조금', m: '보통', l: '많이', xl: '아주 많이' },
-  xmas: '크리스마스 효과 ("크리스마스" 입력 시)', xmasPreview: '크리스마스 효과 미리보기',
+  xmas: '특별 효과', xmasPreview: '특별 효과 미리보기',
   specialKey: (k) => `특별 효과 키: ${k || '없음'}`, setKey: '키 지정… (다음에 누르는 키)', pressKey: '지정할 키를 누르세요…', clearKey: '지정 해제',
   login: '로그인 시 자동 실행', quit: '종료',
 } : {
-  effect: 'Effect', modes: { off: 'Off', snow: 'Snow', stars: 'Stardust', clover: 'Four-leaf clover', leaves: 'Autumn leaves', sakura: 'Cherry blossoms', bubble: 'Bubbles', paws: 'Cat paws' },
+  effect: 'Effect', modes: { off: 'Off', snow: 'Snow', stars: 'Stardust', clover: 'Four-leaf clover', leaves: 'Autumn leaves', sakura: 'Cherry blossoms', bubble: 'Bubbles', paws: 'Cat paws', money: 'Banknotes', cherry: 'Cherries', sports: 'Sports balls', fastfood: 'Fast food' },
   tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', yellow: 'Yellow', sky: 'Sky', rainbow: 'Rainbow' },
   density: 'Particle amount', densities: { xs: 'Very little', s: 'A little', m: 'Normal', l: 'A lot', xl: 'Very many' },
-  xmas: 'Christmas effect (when you type "christmas")', xmasPreview: 'Preview Christmas effect',
+  xmas: 'Special effect', xmasPreview: 'Preview special effect',
   specialKey: (k) => `Special effect key: ${k || 'None'}`, setKey: 'Set key… (next key you press)', pressKey: 'Press the key to use…', clearKey: 'Clear key',
   login: 'Launch at login', quit: 'Quit',
 };
