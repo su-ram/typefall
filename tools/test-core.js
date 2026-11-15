@@ -50,5 +50,12 @@ const sim = (mode, extra = {}) => {
 { const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ tint: 'mint' }); check('색상 변경 후 스프라이트 재생성', tf.spr.stars.length, 8); }
 check('노랑 색상 존재', T.TINTS.yellow, '#FFE08A');
 { const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ tint: 'yellow' }); check('노랑 스프라이트 생성', tf.spr.stars.length, 8); }
+check('레인보우 = 파스텔 6색 배열', Array.isArray(T.TINTS.rainbow) && T.TINTS.rainbow.length, 6);
+{ const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ tint: 'rainbow', mode: 'stars' });
+  check('레인보우 별 스프라이트(6색×8모양)', tf.spr.stars.length, 48); check('레인보우 눈 스프라이트(6색)', tf.spr.dots.length, 6);
+  let t = 0; for (let i = 0; i < 600; i++) { t += 16; if (i % 6 === 0) tf.hit(t); tf.update(0.016, t); tf.draw(ctx); }
+  check('레인보우 시뮬레이션 정상', tf.starsF.count > 0, true); }
+{ const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ tint: 'mint' });
+  check('단색은 눈 스프라이트 1개', tf.spr.dots.length, 1); }
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exit(fails ? 1 : 0);

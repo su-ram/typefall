@@ -13,8 +13,9 @@
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = (a) => a[(Math.random() * a.length) | 0];
 
-  /** 효과 색상(눈 + 별가루 공통). null = 기본(별: 금/연노랑/핑크/하늘, 눈: 옅은 하늘색) */
-  const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF' };
+  /** 효과 색상(눈 + 별가루 공통). null = 기본(별: 금/연노랑/핑크/하늘, 눈: 옅은 하늘색), 배열 = 입자마다 무작위로 섞어 씀 */
+  const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF',
+    rainbow: ['#FFB3D1', '#FFD1B3', '#FFE08A', '#B5EAD7', '#B3DEFF', '#C7B8FF'] }; // 핑크·피치·노랑·민트·스카이·라벤더
   /** 파티클 양 단계. 기준(기본) = midhigh(중상) = 1.0, 높을수록 많아진다. */
   const DENSITY = { low: 0.25, midlow: 0.5, mid: 0.75, midhigh: 1.0, high: 1.6 };
 
@@ -92,9 +93,11 @@
       x.closePath(); x.fill();
     };
     const dotOf = (hex) => mk(16, (x) => glow(x, 8, 8, hexRgb(hex), 8, 1));
-    const spr = { dot: dotOf(tint || '#BFE0FF'), stars: [], specks: [], emojis: [], xmasDots: XMAS_COLORS.map(dotOf) };
+    const tints = tint ? (Array.isArray(tint) ? tint : [tint]) : null;   // 색 하나 또는 여러 색(레인보우)
+    const dots = (tints || ['#BFE0FF']).map(dotOf);
+    const spr = { dot: dots[0], dots, stars: [], specks: [], emojis: [], xmasDots: XMAS_COLORS.map(dotOf) };
 
-    const colors = tint ? [tint] : ['#FFD34D', '#FFE9A0', '#FFB3D1', '#B3F0FF'];
+    const colors = tints || ['#FFD34D', '#FFE9A0', '#FFB3D1', '#B3F0FF'];
     for (const hex of colors) {
       const rgb = hexRgb(hex);
       const speck = mk(24, (x) => glow(x, 12, 12, rgb, 4.5, 1));
@@ -274,7 +277,7 @@
       this.tracker.update(now === undefined ? performance.now() : now);
       const lv = this.tracker.level, idle = this.tracker.idle;
       const den = DENSITY[this.opts.density] || 1, m = this.opts.mode;
-      this.snow.step(dt, m === 'snow' && !idle ? lerp(1, 5, lv) * den : 0, this.W, this.H, den, [this.spr.dot], []);
+      this.snow.step(dt, m === 'snow' && !idle ? lerp(1, 5, lv) * den : 0, this.W, this.H, den, this.spr.dots, []);
       this.starsF.step(dt, m === 'stars' && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, this.spr.stars, this.spr.specks);
       this.xmas.update(dt, this.W, this.H, this.spr);
     }

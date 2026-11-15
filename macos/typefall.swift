@@ -101,9 +101,10 @@ final class SnowField {
     }
 }
 
-/// 화면 효과 색상 (눈 + 별가루 공통). nil = 기본(별: 금색, 눈: 하늘색)
-let fxTints: [(String, UInt32?)] = [
-    ("기본", nil), ("핑크", 0xFFB3D1), ("민트", 0xB5EAD7), ("라벤더", 0xC7B8FF), ("피치", 0xFFD1B3), ("노랑", 0xFFE08A), ("스카이", 0xB3DEFF),
+/// 화면 효과 색상 (눈 + 별가루 공통). nil = 기본(별: 금색, 눈: 하늘색), 여러 개 = 입자마다 무작위로 섞음(레인보우)
+let fxTints: [(String, [UInt32]?)] = [
+    ("기본", nil), ("핑크", [0xFFB3D1]), ("민트", [0xB5EAD7]), ("라벤더", [0xC7B8FF]), ("피치", [0xFFD1B3]), ("노랑", [0xFFE08A]), ("스카이", [0xB3DEFF]),
+    ("레인보우", [0xFFB3D1, 0xFFD1B3, 0xFFE08A, 0xB5EAD7, 0xB3DEFF, 0xC7B8FF]),   // 핑크·피치·노랑·민트·스카이·라벤더
 ]
 
 /// 단어 감지: 글자 내용을 저장하지 않고, 목표 키 순서를 어디까지 눌렀는지 "진행 상태"만 가진다.
@@ -282,13 +283,13 @@ final class ScreenFX {
     let xmasEmojis: [CGImage]
     let xmasDots: [CGImage]
     var snowOn = false, starsOn = false
-    var dot: CGImage
+    var dots: [CGImage]
     var starImages: [CGImage]
     var speckImages: [CGImage]
-    var tint: UInt32? = nil { didSet { dot = ScreenFX.makeDot(tint ?? 0xBFE0FF); (starImages, speckImages) = ScreenFX.makeStars(tint) } }
+    var tint: [UInt32]? = nil { didSet { dots = (tint ?? [0xBFE0FF]).map { ScreenFX.makeDot($0) }; (starImages, speckImages) = ScreenFX.makeStars(tint) } }
 
     init() {
-        dot = ScreenFX.makeDot(0xBFE0FF)
+        dots = [ScreenFX.makeDot(0xBFE0FF)]
         (starImages, speckImages) = ScreenFX.makeStars(nil)
         xmasEmojis = ["🎄", "🎅", "🎁", "⛄", "🔔", "⭐", "🦌", "🍪", "❄️", "🧦"].map { ScreenFX.makeEmoji($0) }
         xmasDots = [0xFF3B4E, 0x2EC866].map { ScreenFX.makeDot($0) }
@@ -297,8 +298,8 @@ final class ScreenFX {
 
     /// 별가루 이미지: 작은 가루 점 / 빛 구슬 / 5각 별 / 가는 4갈래 반짝이.
     /// stars = 떨어지는 본체(가루 점을 가장 많이 섞음), specks = 꼬리용 작은 가루
-    static func makeStars(_ tint: UInt32?) -> (stars: [CGImage], specks: [CGImage]) {
-        let colors: [UInt32] = tint.map { [$0] } ?? [0xFFD34D, 0xFFE9A0, 0xFFB3D1, 0xB3F0FF]
+    static func makeStars(_ tint: [UInt32]?) -> (stars: [CGImage], specks: [CGImage]) {
+        let colors: [UInt32] = tint ?? [0xFFD34D, 0xFFE9A0, 0xFFB3D1, 0xB3F0FF]
         func glow(_ c: CGContext, _ rgb: UInt32, _ r: CGFloat, _ a: CGFloat) {
             let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [hex(rgb).copy(alpha: a)!, hex(rgb).copy(alpha: 0)!] as CFArray, locations: [0, 1])!
             c.drawRadialGradient(g, startCenter: CGPoint(x: 12, y: 12), startRadius: 0, endCenter: CGPoint(x: 12, y: 12), endRadius: r, options: [])
@@ -391,7 +392,7 @@ final class ScreenFX {
 
     /// 타자 속도에 비례해 눈 양 조절
     func update(level: Double, idle: Bool, dt: Double) {
-        for f in snowFields { f.density = density; f.step(dt: dt, rate: idle ? 0 : lerp(1, 5, level) * density, images: [dot]) } // 초당 1~5개 생성
+        for f in snowFields { f.density = density; f.step(dt: dt, rate: idle ? 0 : lerp(1, 5, level) * density, images: dots) } // 초당 1~5개 생성
         for x in xmasFX { x.update(dt: dt) }
         for f in starFields { f.density = density; f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: starImages, trail: speckImages) }
     }

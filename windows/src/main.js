@@ -36,13 +36,13 @@ function saveSettings() {
 const KO = (app.getLocale() || 'en').toLowerCase().startsWith('ko');
 const T = KO ? {
   effect: '화면 효과', modes: { off: '끄기', snow: '눈', stars: '별가루' },
-  tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이' },
+  tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이', rainbow: '레인보우' },
   density: '파티클 양', densities: { low: '하', midlow: '중하', mid: '중', midhigh: '중상', high: '상' },
   xmas: '크리스마스 효과 ("크리스마스" 입력 시)', xmasPreview: '크리스마스 효과 미리보기',
   login: '로그인 시 자동 실행', quit: '종료',
 } : {
   effect: 'Effect', modes: { off: 'Off', snow: 'Snow', stars: 'Stardust' },
-  tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', yellow: 'Yellow', sky: 'Sky' },
+  tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', yellow: 'Yellow', sky: 'Sky', rainbow: 'Rainbow' },
   density: 'Particle amount', densities: { low: 'Low', midlow: 'Medium-low', mid: 'Medium', midhigh: 'Medium-high', high: 'High' },
   xmas: 'Christmas effect (when you type "christmas")', xmasPreview: 'Preview Christmas effect',
   login: 'Launch at login', quit: 'Quit',
