@@ -12,6 +12,7 @@
   const lerp = (a, b, t) => a + (b - a) * t;
   const rnd = (a, b) => a + Math.random() * (b - a);
   const pick = (a) => a[(Math.random() * a.length) | 0];
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
   /** 효과 색상(눈 + 별가루 공통). null = 기본(별: 금/연노랑/핑크/하늘, 눈: 옅은 하늘색), 배열 = 입자마다 무작위로 섞어 씀 */
   const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF',
@@ -77,7 +78,11 @@
   }
 
   // ── 스프라이트(오프스크린 캔버스에 한 번만 그림) ───────────────────────
-  const EMOJIS = ['🎄', '🎅', '🎁', '⛄', '🔔', '⭐', '🦌', '🍪', '❄️', '🧦'];
+  // 앞의 EMOJI_REPEATABLE 개(트리·산타·산타 부인)는 여러 번 나와도 되고, 나머지는 화면에 동시에 하나씩만 나온다.
+  // 한 번에 12개: 트리 3~4개(화면 전체 최대 4개, 가장 많음) + 산타 2개 + 나머지는 하나씩(❄️ 는 항상 포함).
+  // 🫎(무스)는 Unicode 15 이모지라 오래된 OS(macOS 13.2 이하, Windows 10 등)에서는 글자가 깨져 보일 수 있다.
+  const EMOJIS = ['🎄', '🎅', '🤶', '🎁', '⛄', '🔔', '⭐', '🫎', '🍪', '❄️'];
+  const EMOJI_REPEATABLE = 3, MAX_TREES = 4;
   const XMAS_COLORS = ['#FF3B4E', '#2EC866']; // 빨강, 초록
 
   function buildSprites(createCanvas, dpr, tint) {
@@ -124,6 +129,7 @@
         x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(e, 24, 26);
       }));
     }
+    spr.emojiRepeatable = EMOJI_REPEATABLE; spr.emojiSnowflake = EMOJIS.indexOf('❄️');
     return spr;
   }
 
@@ -173,9 +179,29 @@
 
   // ── 크리스마스: 빨강·초록 크로세트 폭죽 + 이모지 소나기 ────────────────
   class Christmas {
-    constructor() { this.parts = []; this.emojiLeft = 0; this.burstsLeft = 0; this.emojiAcc = 0; this.burstAcc = 0; this.t = 0; this.maxParts = 900; }
-    get active() { return this.parts.length > 0 || this.emojiLeft > 0 || this.burstsLeft > 0; }
-    trigger() { this.emojiLeft += 12; this.burstsLeft += 9; }
+    constructor() { this.parts = []; this.queue = []; this.burstsLeft = 0; this.emojiAcc = 0; this.burstAcc = 0; this.t = 0; this.maxParts = 900; this.spr = null; }
+    get active() { return this.parts.length > 0 || this.queue.length > 0 || this.burstsLeft > 0; }
+    /** 이모지 12개를 예약한다. 반복 가능 그룹(트리·산타) 밖의 이모지는 화면·대기열에 이미 있으면 다시 뽑지 않는다. */
+    trigger(spr) {
+      spr = spr || this.spr;
+      this.burstsLeft += 9;
+      if (!spr) return;
+      const n = spr.emojis.length, R = spr.emojiRepeatable, total = 12;
+      const busy = new Set(this.queue);
+      let treeNow = this.queue.filter((i) => i === 0).length;
+      for (const p of this.parts) if (p.kind === 'emoji') { busy.add(p.idx); if (p.idx === 0) treeNow++; }
+      const trees = Math.min(3 + ((Math.random() * 2) | 0), Math.max(0, MAX_TREES - treeNow));   // 트리 3~4개, 화면 전체로는 최대 4개
+      const santas = Array.from({ length: 2 }, () => 1 + ((Math.random() * (R - 1)) | 0));       // 산타/산타 부인 2개(반복 가능)
+      const slots = total - trees - santas.length;
+      const others = [];
+      for (let i = R; i < n; i++) if (!busy.has(i)) others.push(i);
+      shuffle(others);
+      const sf = others.indexOf(spr.emojiSnowflake);
+      if (sf > 0) { others.splice(sf, 1); others.unshift(spr.emojiSnowflake); }                     // ❄️ 는 항상 먼저 뽑음
+      const picked = others.slice(0, slots);
+      const fill = Array.from({ length: slots - picked.length }, () => 1 + ((Math.random() * (R - 1)) | 0)); // 모자라면 산타로
+      this.queue.push(...shuffle([].concat(Array(trees).fill(0), santas, picked, fill)));
+    }
 
     burst(W, H, spr) {
       const cx = rnd(0.12, 0.88) * W, cy = rnd(0.12, 0.6) * H, n = 12;
@@ -186,12 +212,12 @@
       }
     }
     update(dt, W, H, spr) {
-      this.t += dt;
-      if (this.emojiLeft > 0) {
+      this.t += dt; this.spr = spr;
+      if (this.queue.length > 0) {
         this.emojiAcc += dt * 6;
-        while (this.emojiAcc >= 1 && this.emojiLeft > 0) {
-          this.emojiAcc -= 1; this.emojiLeft -= 1;
-          this.parts.push({ kind: 'emoji', img: pick(spr.emojis), size: 40, x: rnd(0, W), y: -30, vy: rnd(90, 160), phase: rnd(0, TAU), spin: rnd(-1.2, 1.2) });
+        while (this.emojiAcc >= 1 && this.queue.length > 0) {
+          this.emojiAcc -= 1; const idx = this.queue.shift();
+          this.parts.push({ kind: 'emoji', idx, img: spr.emojis[idx], size: 40, x: rnd(0, W), y: -30, vy: rnd(90, 160), phase: rnd(0, TAU), spin: rnd(-1.2, 1.2) });
         }
       }
       if (this.burstsLeft > 0) {
@@ -267,10 +293,10 @@
     /** 키 하나(event.code). 크리스마스가 켜져 있을 때만 본다. 감지되면 true */
     key(code) {
       if (!this.opts.xmas) return false;
-      if (this.word.feed(code)) { this.xmas.trigger(); return true; }
+      if (this.word.feed(code)) { this.xmas.trigger(this.spr); return true; }
       return false;
     }
-    triggerChristmas() { this.xmas.trigger(); }
+    triggerChristmas() { this.xmas.trigger(this.spr); }
     /** 그릴 게 남아 있거나 타자 중이면 true (오버레이가 루프를 멈출지 판단) */
     get active() {
       return this.tracker.smoothed > 0 || this.snow.count > 0 || this.starsF.count > 0 || this.xmas.active;
@@ -291,7 +317,7 @@
     }
   }
 
-  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
+  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, EMOJIS, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Typefall = api;
 })(typeof self !== 'undefined' ? self : this);

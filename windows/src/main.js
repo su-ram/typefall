@@ -138,7 +138,7 @@ async function selftest(kind, outDir) {
   const timer = setInterval(() => send({ type: 'hit' }), 100);        // 초당 10타
   if (kind === 'xmas') setTimeout(() => send({ type: 'xmas' }), 300);
   const snap = async (name) => { const img = await win.webContents.capturePage(); fs.writeFileSync(path.join(outDir, name), img.toPNG()); console.log('saved', name); };
-  const [t1, t2] = kind === 'xmas' ? [1500, 2600] : [5000, 9000];
+  const [t1, t2] = kind === 'xmas' ? [2600, 3800] : [5000, 9000];
   setTimeout(() => snap(`${kind}-a.png`), t1);
   setTimeout(async () => { await snap(`${kind}-b.png`); clearInterval(timer); app.quit(); }, t2);
 }

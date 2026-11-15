@@ -141,7 +141,7 @@ final class ChristmasFX {
         let layer = CALayer()
         var x = 0.0, y = 0.0, vx = 0.0, vy = 0.0, g = 0.0
         var life = 0.0, maxLife = 1.0, phase = 0.0, spin = 0.0
-        var emoji = false
+        var emoji = false, emojiIdx = 0
         var trail = false, trailAcc = 0.0   // 날아가며 꼬리 점을 남김
         var sparkle = 0.0, flicker = false  // 반짝이는 가루를 흘림 / 깜빡임
         var drag = 1.2, size = 5.0
@@ -153,20 +153,40 @@ final class ChristmasFX {
     let size: CGSize
     let emojis: [CGImage], dots: [CGImage]
     var parts: [P] = []
-    var emojiLeft = 0, burstsLeft = 0
+    var emojiQueue: [Int] = []          // 앞으로 떨어뜨릴 이모지(인덱스)
+    var burstsLeft = 0
+    let repeatable: Int                 // 앞의 N개(트리·산타·산타 부인)만 여러 번 나올 수 있음
+    let snowflake: Int                  // ❄️ 의 인덱스(매번 포함)
     var emojiAcc = 0.0, burstAcc = 0.0, t = 0.0
 
-    init(size: CGSize, emojis: [CGImage], dots: [CGImage]) {
-        self.size = size; self.emojis = emojis; self.dots = dots
+    init(size: CGSize, emojis: [CGImage], repeatable: Int, snowflake: Int, dots: [CGImage]) {
+        self.size = size; self.emojis = emojis; self.repeatable = repeatable; self.snowflake = snowflake; self.dots = dots
         root.frame = CGRect(origin: .zero, size: size)
     }
 
-    func trigger() { emojiLeft += 12; burstsLeft += 9 }
+    /// 이모지 12개를 예약한다: 트리 3~4개(화면 전체 최대 4개, 가장 많음) + 산타 계열 2개 + 나머지는 하나씩(❄️ 는 항상 포함).
+    /// 반복 가능 그룹(트리·산타) 밖의 이모지는 화면·대기열에 이미 있으면 다시 뽑지 않는다.
+    func trigger() {
+        burstsLeft += 9
+        let total = 12, maxTrees = 4
+        var busy = Set(emojiQueue)
+        var treeNow = emojiQueue.filter { $0 == 0 }.count
+        for p in parts where p.emoji { busy.insert(p.emojiIdx); if p.emojiIdx == 0 { treeNow += 1 } }
+        let trees = min(Int.random(in: 3...4), max(0, maxTrees - treeNow))
+        let santas = (0..<2).map { _ in Int.random(in: 1..<repeatable) }                       // 산타 / 산타 부인
+        let slots = total - trees - santas.count
+        var others = Array(repeatable..<emojis.count).filter { !busy.contains($0) }.shuffled()
+        if let i = others.firstIndex(of: snowflake), i > 0 { others.remove(at: i); others.insert(snowflake, at: 0) }   // ❄️ 먼저
+        let picked = Array(others.prefix(slots))
+        let fill = (0..<(slots - picked.count)).map { _ in Int.random(in: 1..<repeatable) }
+        emojiQueue += (Array(repeating: 0, count: trees) + santas + picked + fill).shuffled()
+    }
 
-    func spawnEmoji() {
+    func spawnEmoji(_ idx: Int) {
         let p = P(); let d = 40.0              // 이모지는 모두 같은 크기
         p.emoji = true
-        p.layer.contents = emojis.randomElement()!
+        p.emojiIdx = idx
+        p.layer.contents = emojis[idx]
         p.layer.bounds = CGRect(x: 0, y: 0, width: d, height: d)
         p.x = Double.random(in: 0...Double(size.width)); p.y = Double(size.height) + 30
         p.vy = Double.random(in: 90...160)      // 아래로 떨어지는 속도(px/s)
@@ -219,11 +239,11 @@ final class ChristmasFX {
 
     func update(dt dtIn: Double) {
         let dt = min(dtIn, 0.1); t += dt
-        if parts.isEmpty && emojiLeft == 0 && burstsLeft == 0 { return }
+        if parts.isEmpty && emojiQueue.isEmpty && burstsLeft == 0 { return }
         CATransaction.begin(); CATransaction.setDisableActions(true)
-        if emojiLeft > 0 {
+        if !emojiQueue.isEmpty {
             emojiAcc += dt * 6
-            while emojiAcc >= 1 && emojiLeft > 0 { emojiAcc -= 1; emojiLeft -= 1; spawnEmoji() }
+            while emojiAcc >= 1 && !emojiQueue.isEmpty { emojiAcc -= 1; spawnEmoji(emojiQueue.removeFirst()) }
         }
         if burstsLeft > 0 {
             burstAcc += dt * 3.5
@@ -283,6 +303,8 @@ final class ScreenFX {
     var xmasOn = false
     var xmasFX: [ChristmasFX] = []
     let xmasEmojis: [CGImage]
+    let xmasEmojiRepeatable = 3
+    let xmasSnowflake: Int
     let xmasDots: [CGImage]
     var snowOn = false, starsOn = false
     var dots: [CGImage]
@@ -293,7 +315,11 @@ final class ScreenFX {
     init() {
         dots = [ScreenFX.makeDot(0xBFE0FF)]
         (starImages, speckImages) = ScreenFX.makeStars(nil)
-        xmasEmojis = ["🎄", "🎅", "🎁", "⛄", "🔔", "⭐", "🦌", "🍪", "❄️", "🧦"].map { ScreenFX.makeEmoji($0) }
+        // 앞의 3개(트리·산타·산타 부인)만 반복 가능, 나머지는 한 번에 하나씩 — xmasEmojiRepeatable 과 맞춰야 함
+        // 🫎(무스)는 Unicode 15 이모지라 macOS 13.2 이하에서는 글자가 깨져 보일 수 있다
+        let names = ["🎄", "🎅", "🤶", "🎁", "⛄", "🔔", "⭐", "🫎", "🍪", "❄️"]
+        xmasEmojis = names.map { ScreenFX.makeEmoji($0) }
+        xmasSnowflake = names.firstIndex(of: "❄️")!
         xmasDots = [0xFF3B4E, 0x2EC866].map { ScreenFX.makeDot($0) }
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in self?.rebuild() }
     }
@@ -360,10 +386,11 @@ final class ScreenFX {
         return ctx.makeImage()!
     }
 
+    static var headless = false   // --menu-test: 화면 창을 만들지 않는다
     func rebuild() {
         windows.forEach { $0.orderOut(nil) }
         windows = []; snowFields = []; starFields = []; xmasFX = []
-        guard snowOn || starsOn || xmasOn else { return }
+        guard snowOn || starsOn || xmasOn, !ScreenFX.headless else { return }
         for sc in NSScreen.screens {
             let w = NSWindow(contentRect: sc.frame, styleMask: .borderless, backing: .buffered, defer: false)
             w.isOpaque = false; w.backgroundColor = .clear; w.hasShadow = false
@@ -382,7 +409,7 @@ final class ScreenFX {
                 v.layer!.addSublayer(f.root); starFields.append(f)
             }
             if xmasOn {
-                let x = ChristmasFX(size: sc.frame.size, emojis: xmasEmojis, dots: xmasDots)
+                let x = ChristmasFX(size: sc.frame.size, emojis: xmasEmojis, repeatable: xmasEmojiRepeatable, snowflake: xmasSnowflake, dots: xmasDots)
                 v.layer!.addSublayer(x.root); xmasFX.append(x)
             }
             w.setFrame(sc.frame, display: false); w.orderFrontRegardless()
@@ -416,8 +443,9 @@ final class App: NSObject, NSApplicationDelegate {
     let tracker = Tracker()
     let fx = ScreenFX()
     let word = WordTrigger()
-    let defaults = UserDefaults.standard
-    let permItem = NSMenuItem(title: "", action: #selector(openPrivacy), keyEquivalent: "")
+    // --menu-test: 사용자 설정을 건드리지 않도록 별도 저장소를 쓴다
+    let defaults: UserDefaults = CommandLine.arguments.contains("--menu-test") ? UserDefaults(suiteName: "dev.typefall.menutest")! : UserDefaults.standard
+    var permItem = NSMenuItem(title: "", action: #selector(openPrivacy), keyEquivalent: "")   // 메뉴를 다시 만들 때마다 새 항목으로 교체
     var xmasOn: Bool { defaults.object(forKey: "xmas") as? Bool ?? true }
     var tap: CFMachPort?
     var keyCount = 0
@@ -425,7 +453,58 @@ final class App: NSObject, NSApplicationDelegate {
     var askedOnce = false
     var lastTick = ProcessInfo.processInfo.systemUptime
 
+    /// 개발용: 메뉴를 만들고 항목을 프로그램으로 "클릭"해서, 저장값과 체크 표시가 일치하는지 검사한다.
+    func runMenuTest() -> Int32 {
+        var fails = 0
+        func checked(_ menuTitle: String) -> [String] {
+            guard let sub = item.menu?.items.first(where: { $0.title == menuTitle })?.submenu else { return ["<메뉴 없음>"] }
+            return sub.items.filter { $0.state == .on }.map { $0.title }
+        }
+        func click(_ menuTitle: String, _ name: String) {
+            guard let sub = item.menu?.items.first(where: { $0.title == menuTitle })?.submenu,
+                  let idx = sub.items.firstIndex(where: { $0.title == name }) else { print("항목 없음: \(menuTitle)/\(name)"); fails += 1; return }
+            let it = sub.items[idx]   // 실제 클릭과 같은 경로: 항목의 target/action 을 직접 호출
+            _ = NSApp.sendAction(it.action!, to: it.target, from: it)
+        }
+        defaults.removePersistentDomain(forName: "dev.typefall.menutest")
+        buildMenu()
+        print("초기 파티클 양 체크:", checked("파티클 양"), "(기대: [보통])")
+        if checked("파티클 양") != ["보통"] { fails += 1 }
+        for name in fxDensities.map({ $0.0 }) + ["보통", "많이", "보통"] {
+            click("파티클 양", name)
+            let got = checked("파티클 양"), saved = defaults.string(forKey: "fxDensity") ?? "nil"
+            let ok = got == [name] && saved == name
+            if !ok { fails += 1 }
+            print(ok ? "PASS" : "FAIL", "선택=\(name)  저장=\(saved)  체크=\(got)")
+        }
+        for (title, name) in [("끄기", "끄기"), ("눈", "눈"), ("별가루", "별가루"), ("눈", "눈")] {
+            click("화면 효과", title)
+            let got = checked("화면 효과"), ok = got == [name]
+            if !ok { fails += 1 }
+            print(ok ? "PASS" : "FAIL", "화면 효과 선택=\(name)  체크=\(got)")
+        }
+        let xmasTitle = "크리스마스 효과 (\"크리스마스\" 입력 시)"
+        func xmasState() -> NSControl.StateValue? { item.menu?.items.first(where: { $0.title == xmasTitle })?.state }
+        for _ in 0..<3 {
+            let before = xmasState()
+            if let it = item.menu?.items.first(where: { $0.title == xmasTitle }) { _ = NSApp.sendAction(it.action!, to: it.target, from: it) }
+            let after = xmasState(), ok = before != nil && after != nil && before != after
+            if !ok { fails += 1 }
+            print(ok ? "PASS" : "FAIL", "크리스마스 토글  \(before == .on ? "켜짐" : "꺼짐") → \(after == .on ? "켜짐" : "꺼짐")")
+        }
+        for name in fxTints.map({ $0.0 }) {
+            click("효과 색상", name)
+            let got = checked("효과 색상"), ok = got == [name]
+            if !ok { fails += 1 }
+            print(ok ? "PASS" : "FAIL", "색상 선택=\(name)  체크=\(got)")
+        }
+        defaults.removePersistentDomain(forName: "dev.typefall.menutest")
+        print(fails == 0 ? "ALL PASSED" : "\(fails) FAILED")
+        return fails == 0 ? 0 : 1
+    }
+
     func applicationDidFinishLaunching(_ n: Notification) {
+        if CommandLine.arguments.contains("--menu-test") { setvbuf(stdout, nil, _IONBF, 0); ScreenFX.headless = true; exit(runMenuTest()) }
         applyFx()
         // 처음 실행하면 로그인 시 자동 실행을 켠다(이후 메뉴에서 끄면 존중). 개발용 빌드(/Applications 밖)는 등록하지 않는다.
         if defaults.object(forKey: "loginInit") == nil, Bundle.main.bundlePath.hasPrefix("/Applications") {
@@ -575,7 +654,10 @@ final class App: NSObject, NSApplicationDelegate {
         let lg = NSMenuItem(title: "로그인 시 자동 실행", action: #selector(toggleLogin(_:)), keyEquivalent: "")
         lg.target = self; lg.state = loginOn ? .on : .off
         m.addItem(lg)
-        permItem.target = self
+        // 같은 NSMenuItem 을 새 메뉴에 또 넣으면 예외가 나서 메뉴가 갱신되지 않는다(체크 표시가 옛 값으로 남던 버그) → 항상 새로 만든다.
+        let perm = NSMenuItem(title: permItem.title, action: permItem.action, keyEquivalent: "")
+        perm.target = self
+        permItem = perm
         m.addItem(permItem)
         m.addItem(.separator())
         m.addItem(NSMenuItem(title: "종료", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
