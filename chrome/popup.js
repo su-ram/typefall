@@ -1,4 +1,4 @@
-const DEFAULTS = { mode: 'snow', tint: 'default', density: 'midhigh', xmas: false };
+const DEFAULTS = { mode: 'snow', tint: 'default', density: 'midhigh', xmas: true };
 chrome.storage.sync.get(DEFAULTS, (v) => {
   for (const k of Object.keys(DEFAULTS)) {
     const el = document.getElementById(k);

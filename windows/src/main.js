@@ -14,7 +14,7 @@ const SELFTEST = argVal('--selftest');
 const OUT_DIR = argVal('--out') || path.join(process.cwd(), 'selftest-out');
 
 // ── 설정 ───────────────────────────────────────────────────────────────
-const DEFAULTS = { mode: 'snow', tint: 'default', density: 'midhigh', xmas: false }; // 크리스마스 효과는 기본 꺼짐
+const DEFAULTS = { mode: 'snow', tint: 'default', density: 'midhigh', xmas: true, loginInit: false };
 let settings = { ...DEFAULTS };
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
@@ -25,6 +25,7 @@ function loadSettings() {
     if (s.tint in core.TINTS) settings.tint = s.tint;
     if (s.density in core.DENSITY) settings.density = s.density;
     if (typeof s.xmas === 'boolean') settings.xmas = s.xmas;
+    if (typeof s.loginInit === 'boolean') settings.loginInit = s.loginInit;
   } catch (_) { /* 처음 실행이거나 손상 → 기본값 */ }
 }
 function saveSettings() {
@@ -35,13 +36,13 @@ function saveSettings() {
 const KO = (app.getLocale() || 'en').toLowerCase().startsWith('ko');
 const T = KO ? {
   effect: '화면 효과', modes: { off: '끄기', snow: '눈', stars: '별가루' },
-  tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', sky: '스카이' },
+  tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이' },
   density: '파티클 양', densities: { low: '하', midlow: '중하', mid: '중', midhigh: '중상', high: '상' },
   xmas: '크리스마스 효과 ("크리스마스" 입력 시)', xmasPreview: '크리스마스 효과 미리보기',
   login: '로그인 시 자동 실행', quit: '종료',
 } : {
   effect: 'Effect', modes: { off: 'Off', snow: 'Snow', stars: 'Stardust' },
-  tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', sky: 'Sky' },
+  tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', yellow: 'Yellow', sky: 'Sky' },
   density: 'Particle amount', densities: { low: 'Low', midlow: 'Medium-low', mid: 'Medium', midhigh: 'Medium-high', high: 'High' },
   xmas: 'Christmas effect (when you type "christmas")', xmasPreview: 'Preview Christmas effect',
   login: 'Launch at login', quit: 'Quit',
@@ -149,6 +150,10 @@ else {
   app.whenReady().then(() => {
     loadSettings();
     if (SELFTEST) { selftest(SELFTEST, OUT_DIR); return; }
+    if (app.isPackaged && !settings.loginInit) {       // 처음 실행하면 로그인 시 자동 실행을 켠다 (이후 메뉴에서 끄면 존중)
+      app.setLoginItemSettings({ openAtLogin: true });
+      settings.loginInit = true; saveSettings();
+    }
     tray = new Tray(nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png')).resize({ width: 16, height: 16 }));
     tray.setToolTip('Typefall');
     word = new core.WordTrigger();   // startHook 에서 uiohook 키코드용으로 교체

@@ -48,5 +48,7 @@ const sim = (mode, extra = {}) => {
   let hit = false; for (const c of 'KeyC KeyH KeyR KeyI KeyS KeyT KeyM KeyA KeyS'.split(' ')) hit = tf.key(c) || hit;
   check('xmas 꺼짐 → 감지 안 함', hit, false); }
 { const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ tint: 'mint' }); check('색상 변경 후 스프라이트 재생성', tf.spr.stars.length, 8); }
+check('노랑 색상 존재', T.TINTS.yellow, '#FFE08A');
+{ const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ tint: 'yellow' }); check('노랑 스프라이트 생성', tf.spr.stars.length, 8); }
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exit(fails ? 1 : 0);

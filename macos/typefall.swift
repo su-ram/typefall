@@ -103,7 +103,7 @@ final class SnowField {
 
 /// 화면 효과 색상 (눈 + 별가루 공통). nil = 기본(별: 금색, 눈: 하늘색)
 let fxTints: [(String, UInt32?)] = [
-    ("기본", nil), ("핑크", 0xFFB3D1), ("민트", 0xB5EAD7), ("라벤더", 0xC7B8FF), ("피치", 0xFFD1B3), ("스카이", 0xB3DEFF),
+    ("기본", nil), ("핑크", 0xFFB3D1), ("민트", 0xB5EAD7), ("라벤더", 0xC7B8FF), ("피치", 0xFFD1B3), ("노랑", 0xFFE08A), ("스카이", 0xB3DEFF),
 ]
 
 /// 단어 감지: 글자 내용을 저장하지 않고, 목표 키 순서를 어디까지 눌렀는지 "진행 상태"만 가진다.
@@ -415,7 +415,7 @@ final class App: NSObject, NSApplicationDelegate {
     let word = WordTrigger()
     let defaults = UserDefaults.standard
     let permItem = NSMenuItem(title: "", action: #selector(openPrivacy), keyEquivalent: "")
-    var xmasOn: Bool { defaults.object(forKey: "xmas") as? Bool ?? false }
+    var xmasOn: Bool { defaults.object(forKey: "xmas") as? Bool ?? true }
     var tap: CFMachPort?
     var keyCount = 0
     var wasTrusted = false
@@ -424,6 +424,11 @@ final class App: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ n: Notification) {
         applyFx()
+        // 처음 실행하면 로그인 시 자동 실행을 켠다(이후 메뉴에서 끄면 존중). 개발용 빌드(/Applications 밖)는 등록하지 않는다.
+        if defaults.object(forKey: "loginInit") == nil, Bundle.main.bundlePath.hasPrefix("/Applications") {
+            defaults.set(true, forKey: "loginInit")
+            try? SMAppService.mainApp.register()
+        }
         if CommandLine.arguments.contains("--fx-preview") || CommandLine.arguments.contains("--fx-preview-stars") {
             let stars = CommandLine.arguments.contains("--fx-preview-stars")
             fx.snowOn = !stars; fx.starsOn = stars; fx.rebuild()
@@ -495,13 +500,15 @@ final class App: NSObject, NSApplicationDelegate {
     }
     func applyFx() {
         let m = fxMode
-        fx.snowOn = m == "snow"; fx.starsOn = m == "stars"; fx.xmasOn = xmasOn
+        let wantSnow = m == "snow", wantStars = m == "stars", wantXmas = xmasOn
+        let structureChanged = fx.snowOn != wantSnow || fx.starsOn != wantStars || fx.xmasOn != wantXmas
+        fx.snowOn = wantSnow; fx.starsOn = wantStars; fx.xmasOn = wantXmas
         if !xmasOn { word.reset() }
         let name = defaults.string(forKey: "fxTint") ?? "기본"
         fx.tint = fxTints.first(where: { $0.0 == name })?.1
         let den = defaults.string(forKey: "fxDensity") ?? "중상"
         fx.density = fxDensities.first(where: { $0.0 == den })?.1 ?? 1.0
-        fx.rebuild()
+        if structureChanged { fx.rebuild() }   // 색상·파티클 양은 즉시 반영만 하고 입자는 유지
         updateIcon()
     }
     func updateIcon() {

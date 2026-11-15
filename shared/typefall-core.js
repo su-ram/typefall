@@ -14,7 +14,7 @@
   const pick = (a) => a[(Math.random() * a.length) | 0];
 
   /** 효과 색상(눈 + 별가루 공통). null = 기본(별: 금/연노랑/핑크/하늘, 눈: 옅은 하늘색) */
-  const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', sky: '#B3DEFF' };
+  const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF' };
   /** 파티클 양 단계. 기준(기본) = midhigh(중상) = 1.0, 높을수록 많아진다. */
   const DENSITY = { low: 0.25, midlow: 0.5, mid: 0.75, midhigh: 1.0, high: 1.6 };
 
