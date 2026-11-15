@@ -23,13 +23,23 @@ open -a Typefall
 (웹 스토어 등록 예정)
 
 ### Windows
-준비 중입니다. (Electron + 같은 효과 엔진 `shared/typefall-core.js`)
+`windows/` 폴더의 Electron 앱입니다 (같은 효과 엔진 `shared/typefall-core.js` 사용, 어느 앱에서 쳐도 화면 전체에 효과가 나옵니다).
+설치 파일은 GitHub Actions가 빌드합니다 → [Releases](https://github.com/su-ram/typefall/releases) *(준비 중)*.
+
+```bash
+cd windows
+npm install
+npm test          # 키 매핑·단어 감지 테스트
+npm start         # 실행 (트레이 아이콘에서 설정)
+npm run dist      # Windows 설치 파일 (Windows에서)
+```
 
 ## 개인정보
 
 - 키 **내용**은 읽거나 저장하지 않으며, 네트워크로 아무것도 전송하지 않습니다. 앱은 입력 **횟수**만 셉니다.
 - 크리스마스 효과를 켜면, 해당 단어의 **키 순서를 어디까지 눌렀는지(진행 상태)** 만 메모리에서 확인합니다. 입력한 글자를 저장하지 않으며, 끄면 키 내용을 아예 보지 않습니다.
 - Chrome 확장은 비밀번호 입력창에서는 아무것도 하지 않고, iframe의 키 코드를 상위 페이지로 전달하지 않습니다.
+- 맥·Windows 데스크톱 앱은 어느 앱에서 입력하든 감지하므로 **비밀번호 입력창에서 친 키도 횟수로는 계산됩니다**(내용은 읽지 않음). 크리스마스 효과는 기본 꺼짐이며, 꺼 두면 키 내용을 아예 보지 않습니다.
 - 맥 앱은 읽기 전용 이벤트 탭(`CGEventTap`, listen-only)을 사용합니다. 코드는 모두 이 저장소에 있습니다.
 
 ## 소스에서 빌드 (macOS)
@@ -48,6 +58,7 @@ cd macos
 |---|---|
 | `macos/` | 메뉴바 앱 (Swift, AppKit + Core Animation) |
 | `chrome/` | Chrome 확장 (MV3) |
+| `windows/` | Windows(Electron) 데스크톱 앱 — 트레이, 전역 키 감지(uiohook), 화면별 투명 오버레이 |
 | `shared/typefall-core.js` | 효과 엔진 (캔버스 2D, 의존성 없음) — Chrome 확장과 향후 Windows 앱이 공유 |
 | `tools/` | 아이콘 생성기, 엔진 테스트 (`node tools/test-core.js`) |
 

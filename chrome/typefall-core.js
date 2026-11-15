@@ -57,10 +57,11 @@
     ['KeyC', 'KeyH', 'KeyR', 'KeyI', 'KeyS', 'KeyT', 'KeyM', 'KeyA', 'KeyS'],          // "christmas"
   ];
   class WordTrigger {
-    constructor(patterns = XMAS_PATTERNS) { this.patterns = patterns; this.reset(); }
+    // patterns/backspace 는 키 체계가 다른 환경(예: Windows 전역 훅의 숫자 키코드)에서도 쓸 수 있게 주입 가능
+    constructor(patterns = XMAS_PATTERNS, backspace = 'Backspace') { this.patterns = patterns; this.backspace = backspace; this.reset(); }
     reset() { this.progress = this.patterns.map(() => 0); }
     feed(code) {
-      if (code === 'Backspace') { this.progress = this.progress.map((p) => Math.max(0, p - 1)); return false; }
+      if (code === this.backspace) { this.progress = this.progress.map((p) => Math.max(0, p - 1)); return false; }
       let hit = false;
       this.patterns.forEach((p, i) => {
         if (code === p[this.progress[i]]) {

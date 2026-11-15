@@ -1,0 +1,42 @@
+name: Windows build
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '이미 만든 릴리스 태그에 결과물을 올리려면 입력 (예: v0.1.0). 비우면 아티팩트로만 저장'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: windows/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: typefall-windows
+          path: windows/dist/Typefall-*-win-x64.*
+      - name: Attach to release
+        if: ${{ inputs.tag != '' || startsWith(github.ref, 'refs/tags/v') }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag != '' && inputs.tag || github.ref_name }}
+        run: gh release upload "$TAG" dist/Typefall-*-win-x64.exe dist/Typefall-*-win-x64.zip --clobber

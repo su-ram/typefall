@@ -12,3 +12,9 @@ shared/typecat-core.js
 shared/preview.html
 fireworks.html
 homebrew-typefall/
+
+# Windows(Electron) 앱 생성물
+windows/node_modules/
+windows/dist/
+windows/selftest-out/
+windows/src/typefall-core.js

@@ -1,0 +1,37 @@
+{
+  "name": "typefall-windows",
+  "productName": "Typefall",
+  "version": "0.1.0",
+  "description": "Snow, stardust and Christmas fireworks that fall across your whole screen as you type.",
+  "main": "src/main.js",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "sync": "node scripts/sync-core.js",
+    "start": "npm run sync && electron .",
+    "selftest": "npm run sync && electron . --selftest=snow --out=./selftest-out",
+    "test": "npm run sync && node test/keys.test.js",
+    "dist": "npm run sync && electron-builder --win --x64 --publish never"
+  },
+  "dependencies": {
+    "uiohook-napi": "1.5.5"
+  },
+  "devDependencies": {
+    "electron": "45.2.1",
+    "electron-builder": "26.18.0"
+  },
+  "build": {
+    "appId": "dev.typefall.windows",
+    "productName": "Typefall",
+    "copyright": "MIT License",
+    "directories": { "output": "dist" },
+    "files": ["src/**", "assets/**", "package.json"],
+    "asarUnpack": ["**/*.node"],
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "zip", "arch": ["x64"] }],
+      "artifactName": "Typefall-${version}-win-x64.${ext}"
+    },
+    "nsis": { "oneClick": true, "perMachine": false, "deleteAppDataOnUninstall": false }
+  }
+}
