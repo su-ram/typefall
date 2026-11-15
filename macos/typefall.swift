@@ -37,10 +37,10 @@ func hex(_ v: UInt32) -> CGColor {
 }
 
 /// 눈/별가루: 위에서 생성되어 아래로만 떨어진다 (레이어 좌표는 y가 위로 증가 → 아래로 = y 감소)
-enum FallKind: String, CaseIterable { case snow, stars, clover, leaves, sakura, bubble, paws, money, cherry, sports, fastfood }
+enum FallKind: String, CaseIterable { case snow, stars, clover, leaves, sakura, bubble, paws, money, cherry, sports, fastfood, paperplane }
 
 final class SnowField {
-    final class Flake { let layer = CALayer(); let glint = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0, rot0 = 0.0, tw = 0.0, d = 0.0, age = 0.0, alpha = 1.0, popT: Double? = nil }
+    final class Flake { let layer = CALayer(); let glint = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0, rot0 = 0.0, tw = 0.0, d = 0.0, age = 0.0, alpha = 1.0, popT: Double? = nil, popAt: Double? = nil }
     final class Dust { let layer = CALayer(); var y = 0.0, vy = 0.0, life = 0.0, maxLife = 1.0, alpha = 1.0 }
     let root = CALayer()
     let size: CGSize
@@ -51,7 +51,7 @@ final class SnowField {
     struct Cfg {
         var max: Int, size: ClosedRange<Double>, vy: ClosedRange<Double>, drift: ClosedRange<Double>, spin: ClosedRange<Double>
         var alpha: ClosedRange<Double> = 0.55...0.95
-        var rot = false, flip = false, fade = 0.0, popAt: Double? = nil
+        var rot = false, flip = false, glide = false, fade = 0.0, popAt: Double? = nil
     }
     var cfg: Cfg {
         switch kind {
@@ -64,6 +64,7 @@ final class SnowField {
         case .money: return Cfg(max: 40, size: 20...32, vy: 50...95, drift: 30...60, spin: -1.5...1.5, rot: true, flip: true)
         case .sports: return Cfg(max: 30, size: 16...26, vy: 45...90, drift: 10...25, spin: -2...2, rot: true)
         case .fastfood: return Cfg(max: 30, size: 18...28, vy: 45...90, drift: 15...35, spin: -1.5...1.5, rot: true)
+        case .paperplane: return Cfg(max: 25, size: 18...28, vy: 50...90, drift: 40...80, spin: 0...0, glide: true)
         case .cherry: return Cfg(max: 35, size: 16...26, vy: 45...90, drift: 15...35, spin: -1.5...1.5, rot: true)
         case .paws: return Cfg(max: 40, size: 14...24, vy: 40...80, drift: 8...20, spin: -0.3...0.3, alpha: 0.6...0.9, rot: true)
         }
@@ -87,6 +88,7 @@ final class SnowField {
             let c = cfg; let f = Flake(); let d = Double.random(in: c.size); f.d = d
             f.layer.contents = images.randomElement()!
             f.layer.bounds = CGRect(x: 0, y: 0, width: d, height: d)
+            if let pa = c.popAt { f.popAt = Double.random(in: 0...1) < 0.6 ? Double.random(in: 0.12...pa) : pa }   // 방울의 60%는 중간에서 터짐
             f.alpha = Double.random(in: c.alpha); f.layer.opacity = Float(f.alpha)
             f.x = Double.random(in: 0...Double(size.width))
             f.y = Double(size.height) + 10 // 화면 맨 위
@@ -109,13 +111,14 @@ final class SnowField {
             f.x += sin(t * 0.8 + f.phase) * f.drift * dt
             let c = cfg
             f.age += dt
-            if let pa = c.popAt, f.y <= Double(size.height) * (1 - pa) { f.popT = 0 }
+            if let pa = f.popAt, f.y <= Double(size.height) * (1 - pa) { f.popT = 0 }
             f.layer.position = CGPoint(x: f.x, y: f.y)
             if natural && f.popT == nil { // 회전 (+ 뒤집히며 팔랑), 나타날 때 서서히 (fade)
                 var a = f.alpha
                 if c.fade > 0 { a *= min(1, max(0, f.age / c.fade)) }
                 f.layer.opacity = Float(a)
-                var tr = c.rot ? CATransform3DMakeRotation(CGFloat(f.rot0 + t * f.spin * 0.5), 0, 0, 1) : CATransform3DIdentity
+                var tr = c.glide ? CATransform3DMakeRotation(CGFloat(atan2(-f.vy, cos(t * 0.8 + f.phase) * 0.8 * f.drift)), 0, 0, 1)   // 진행 방향으로 코를 향함
+                    : (c.rot ? CATransform3DMakeRotation(CGFloat(f.rot0 + t * f.spin * 0.5), 0, 0, 1) : CATransform3DIdentity)
                 if c.flip { tr = CATransform3DScale(tr, CGFloat(max(0.2, abs(cos(t * 1.6 + f.phase)))), 1, 1) }
                 f.layer.transform = tr
             }
@@ -344,6 +347,15 @@ let fxDensities: [(String, Double)] = [("아주 조금", 0.3), ("조금", 0.6), 
 /// 이전 버전(0.1.2 이하)에서 저장된 이름 → 같은 양의 새 이름
 let fxDensityLegacy: [String: String] = ["하": "아주 조금", "중하": "조금", "중": "조금", "중상": "보통", "상": "많이"]
 
+/// 화면 효과 메타데이터 (내부용, 코드로만 관리). 메뉴 목록은 여기서 만든다.
+/// enabled = false 로 두면 메뉴에서 빠지고, 저장된 설정이 그 효과를 가리키면 끄기로 취급한다.
+struct FxMode { let key: String; let title: String; var enabled = true }
+let fxModes: [FxMode] = [
+    FxMode(key: "snow", title: "눈"), FxMode(key: "stars", title: "별가루"), FxMode(key: "clover", title: "네잎클로버"), FxMode(key: "leaves", title: "낙엽"),
+    FxMode(key: "sakura", title: "벚꽃"), FxMode(key: "bubble", title: "비눗방울"), FxMode(key: "paws", title: "고양이 발자국"), FxMode(key: "money", title: "지폐"),
+    FxMode(key: "cherry", title: "체리"), FxMode(key: "sports", title: "스포츠 공"), FxMode(key: "fastfood", title: "패스트푸드"), FxMode(key: "paperplane", title: "종이비행기"),
+]
+
 final class ScreenFX {
     var windows: [NSWindow] = []
     var snowFields: [SnowField] = []
@@ -422,6 +434,9 @@ final class ScreenFX {
             c.drawRadialGradient(g, startCenter: CGPoint(x: cx, y: cy), startRadius: 0, endCenter: CGPoint(x: cx, y: cy), endRadius: r, options: [])
         }
         func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x, y: y) }
+        // 좌표를 JS 시안과 같게 쓰려고 y 를 뒤집어 그린다
+        func flipped(_ draw: @escaping (CGContext) -> Void) -> CGImage { makeImage(40) { c in c.translateBy(x: 20, y: 20); c.scaleBy(x: 1, y: -1); c.setLineJoin(.round); c.setLineCap(.round); draw(c) } }
+        func darker(_ rgb: UInt32, _ k: CGFloat) -> CGColor { CGColor(srgbRed: CGFloat((rgb >> 16) & 255) * k / 255, green: CGFloat((rgb >> 8) & 255) * k / 255, blue: CGFloat(rgb & 255) * k / 255, alpha: 1) }
         func heart(_ c: CGContext, _ rgb: UInt32) {
             c.setFillColor(hex(rgb)); c.beginPath(); c.move(to: pt(0, -2))
             c.addCurve(to: pt(-9, -14), control1: pt(-4, -5), control2: pt(-10, -7)); c.addCurve(to: pt(0, -14), control1: pt(-8, -19), control2: pt(-2, -19))
@@ -429,36 +444,29 @@ final class ScreenFX {
             c.closePath(); c.fillPath()
             c.setStrokeColor(CGColor(gray: 1, alpha: 0.35)); c.setLineWidth(1); c.move(to: pt(0, -3)); c.addLine(to: pt(0, -13)); c.strokePath()
         }
-        func vein(_ c: CGContext) { c.setStrokeColor(CGColor(srgbRed: 0.31, green: 0.12, blue: 0, alpha: 0.45)); c.setLineWidth(1.2); c.beginPath(); c.move(to: pt(0, 19)); c.addLine(to: pt(0, -10)); c.strokePath() }
         let clovers = [0x34C759, 0x2EA84F, 0x4CD174, 0x8BDB5A, 0x1F8A4C].map { rgb in makeImage(40) { c in
             c.translateBy(x: 20, y: 20)
             for k in 0..<4 { c.saveGState(); c.rotate(by: CGFloat(k) * .pi / 2); heart(c, UInt32(rgb)); c.restoreGState() }
             glow(c, 0xFFFFFF, 0, 0, 4, 0.25)
         } }
-        func maple(_ rgb: UInt32) -> CGImage { makeImage(40) { c in
-            c.translateBy(x: 20, y: 20); c.setFillColor(hex(rgb)); c.setStrokeColor(hex(rgb)); c.setLineJoin(.round); c.setLineWidth(2.2)
-            c.beginPath()
-            for i in 0..<10 {
-                let r: CGFloat = i % 2 == 0 ? 8 : 16, a = -CGFloat.pi / 2 + CGFloat(i) * .pi / 5
-                let p = pt(cos(a) * r, sin(a) * r + 1); if i == 0 { c.move(to: p) } else { c.addLine(to: p) }
+        func ginkgo(_ rgb: UInt32) -> CGImage { flipped { c in   // 은행잎(참고 이미지): 넓은 부채꼴 + 위쪽 좁고 깊은 갈라짐 + 물결 가장자리 + 촘촘한 부채살 잎맥 + 길게 휜 잎자루
+            func leaf() {
+                c.beginPath(); c.move(to: pt(0, 9))
+                c.addCurve(to: pt(-18.5, 2), control1: pt(-5, 7), control2: pt(-13, 5)); c.addCurve(to: pt(-17, -6.5), control1: pt(-20.5, -1), control2: pt(-19.5, -4)); c.addCurve(to: pt(-8, -13.5), control1: pt(-14.5, -9.5), control2: pt(-11.5, -12))
+                c.addCurve(to: pt(-1.2, -14.5), control1: pt(-5.5, -15), control2: pt(-3, -15.8)); c.addLine(to: pt(0, -4.5)); c.addLine(to: pt(1.2, -14.5))
+                c.addCurve(to: pt(8, -13.5), control1: pt(3, -15.8), control2: pt(5.5, -15)); c.addCurve(to: pt(17, -6.5), control1: pt(11.5, -12), control2: pt(14.5, -9.5)); c.addCurve(to: pt(18.5, 2), control1: pt(19.5, -4), control2: pt(20.5, -1))
+                c.addCurve(to: pt(0, 9), control1: pt(13, 5), control2: pt(5, 7)); c.closePath()
             }
-            c.closePath(); c.drawPath(using: .fillStroke); vein(c)
+            c.setStrokeColor(darker(rgb, 0.9)); c.setLineWidth(1.5); c.beginPath(); c.move(to: pt(0, 9)); c.addQuadCurve(to: pt(-1.6, 19.5), control: pt(1.4, 15)); c.strokePath()   // 잎자루
+            leaf(); c.setFillColor(hex(rgb)); c.fillPath()
+            c.saveGState(); leaf(); c.clip()
+            glow(c, 0xFFFFFF, 0, -2, 15, 0.45)                       // 가운데는 연하게
+            leaf(); c.setStrokeColor(darker(rgb, 0.82).copy(alpha: 0.3)!); c.setLineWidth(3.4); c.strokePath()   // 가장자리는 살짝 진하게
+            c.setStrokeColor(darker(rgb, 0.82)); c.setLineWidth(0.5); c.beginPath()   // 부채살 잎맥
+            for k in -7...7 { let a = CGFloat(k) * 0.215; if abs(a) < 0.04 { continue }; c.move(to: pt(0, 9)); c.addLine(to: pt(sin(a) * 21, 2 - cos(a) * 17.5)) }
+            c.strokePath(); c.restoreGState()
         } }
-        func oval(_ rgb: UInt32) -> CGImage { makeImage(40) { c in
-            c.translateBy(x: 20, y: 20); c.setFillColor(hex(rgb)); c.beginPath(); c.move(to: pt(0, -17))
-            c.addCurve(to: pt(0, 15), control1: pt(13, -8), control2: pt(13, 8)); c.addCurve(to: pt(0, -17), control1: pt(-13, 8), control2: pt(-13, -8))
-            c.closePath(); c.fillPath(); vein(c)
-        } }
-        func ginkgo(_ rgb: UInt32) -> CGImage { makeImage(40) { c in   // 은행잎: 부채꼴, 윗부분 가운데가 살짝 갈라짐
-            c.translateBy(x: 20, y: 20); c.setFillColor(hex(rgb)); c.beginPath(); c.move(to: pt(0, 17)); c.addLine(to: pt(-15, -6))
-            c.addCurve(to: pt(0, -9), control1: pt(-16, -14), control2: pt(-6, -17)); c.addCurve(to: pt(15, -6), control1: pt(6, -17), control2: pt(16, -14))
-            c.closePath(); c.fillPath()
-            c.setStrokeColor(CGColor(srgbRed: 0.47, green: 0.31, blue: 0, alpha: 0.35)); c.setLineWidth(1); c.beginPath()
-            for vx in [-9.0, -4.5, 0.0, 4.5, 9.0] { c.move(to: pt(0, 16)); c.addLine(to: pt(CGFloat(vx), -8)) }
-            c.strokePath()
-        } }
-        let leaves = [maple(0xE8501A), maple(0xF08A24), maple(0xD9342B), maple(0xF2B233), oval(0xC8741F), oval(0xE8A42A), oval(0xA8501A),
-                      ginkgo(0xF2C94C), ginkgo(0xE8B923), ginkgo(0xF5D76E)]
+        let leaves = [0xFBD88A, 0xF7C95C, 0xF2B544, 0xEFA23A, 0xE8B94A, 0xD9B24A].map { ginkgo(UInt32($0)) }   // 낙엽은 은행잎만
         let petals = [(0xFF9DBB, 0xFFE3EC), (0xFFB3CB, 0xFFF0F5), (0xFFC2D6, 0xFFFFFF)].map { (a, b) in makeImage(24) { c in
             c.translateBy(x: 12, y: 12); c.setFillColor(hex(UInt32(a))); c.beginPath(); c.move(to: pt(0, 10))
             c.addCurve(to: pt(-2, -11), control1: pt(-9, 4), control2: pt(-8, -9)); c.addLine(to: pt(0, -8)); c.addLine(to: pt(2, -11))
@@ -535,7 +543,6 @@ final class ScreenFX {
         }
         let sports = [basketball, rugby, baseball, tennis]
         // 패스트푸드(햄버거·피자·감자튀김·콜라를 한 효과로 묶음). 좌표는 JS 시안과 같게 쓰려고 y 를 뒤집는다
-        func flipped(_ draw: @escaping (CGContext) -> Void) -> CGImage { makeImage(40) { c in c.translateBy(x: 20, y: 20); c.scaleBy(x: 1, y: -1); c.setLineJoin(.round); c.setLineCap(.round); draw(c) } }
         func rrect(_ c: CGContext, _ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat, _ r: CGFloat, _ fill: UInt32, _ stroke: UInt32, _ lw: CGFloat = 1.1) {
             c.addPath(CGPath(roundedRect: CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0), cornerWidth: r, cornerHeight: r, transform: nil))
             c.setFillColor(hex(fill)); c.setStrokeColor(hex(stroke)); c.setLineWidth(lw); c.drawPath(using: .fillStroke)
@@ -594,6 +601,18 @@ final class ScreenFX {
             c.setFillColor(CGColor(gray: 1, alpha: 0.3)); c.fillEllipse(in: CGRect(x: -7.8, y: 7, width: 2.6, height: 8))
         }
         let fastfood = [burger, pizza, fries, cola]
+        // 종이비행기: 코가 +x 방향. 윗날개 밝게 / 아랫날개 중간 / 가운데 접힌 면 어둡게
+        func plane(_ base: UInt32) -> CGImage { flipped { c in
+            func tri(_ pts: [CGPoint], _ k: CGFloat) {
+                let r = CGFloat((base >> 16) & 255) * k, g = CGFloat((base >> 8) & 255) * k, b = CGFloat(base & 255) * k
+                c.setFillColor(CGColor(srgbRed: min(1, r / 255), green: min(1, g / 255), blue: min(1, b / 255), alpha: 1)); c.setStrokeColor(CGColor(srgbRed: 0.27, green: 0.31, blue: 0.39, alpha: 0.6)); c.setLineWidth(0.9)
+                c.beginPath(); c.move(to: pts[0]); for q in pts.dropFirst() { c.addLine(to: q) }; c.closePath(); c.drawPath(using: .fillStroke)
+            }
+            tri([pt(18, 1), pt(-16, 12), pt(-6, 2)], 0.86); tri([pt(18, 1), pt(-6, 2), pt(-11, 7)], 0.66); tri([pt(18, 1), pt(-16, -12), pt(-6, 0)], 1.0)
+            c.setStrokeColor(CGColor(srgbRed: 0.27, green: 0.31, blue: 0.39, alpha: 0.45)); c.beginPath(); c.move(to: pt(18, 1)); c.addLine(to: pt(-6, 1)); c.strokePath()
+            c.setFillColor(CGColor(gray: 1, alpha: 0.55)); c.beginPath(); c.move(to: pt(14, -0.5)); c.addLine(to: pt(-8, -8)); c.addLine(to: pt(-4, -2)); c.closePath(); c.fillPath()
+        } }
+        let planes = [0xFFFFFF, 0xBFE3FF, 0xFFD6E7, 0xFFF2B3, 0xD8F5D0].map { plane(UInt32($0)) }
         let glint = makeImage(32) { c in
             glow(c, 0xFFFFFF, 16, 16, 8, 0.5); c.setFillColor(hex(0xFFFFFF)); c.beginPath()
             let pts = [pt(16, 32), pt(17.2, 17.2), pt(32, 16), pt(17.2, 14.8), pt(16, 0), pt(14.8, 14.8), pt(0, 16), pt(14.8, 17.2)]
@@ -613,7 +632,7 @@ final class ScreenFX {
             c.translateBy(x: 16, y: 16)
             let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [rgb255(ring, 0.22), rgb255(ring, 0)] as CFArray, locations: [0, 1])!
             c.drawRadialGradient(g, startCenter: .zero, startRadius: 0, endCenter: .zero, endRadius: 14, options: [])
-            c.setLineWidth(1.6)
+            c.setLineWidth(0.8)
             c.setStrokeColor(rgb255(ring, 0.85)); c.strokeEllipse(in: CGRect(x: -13, y: -13, width: 26, height: 26))
             c.setStrokeColor(rgb255(a1, 0.9)); c.beginPath(); c.addArc(center: .zero, radius: 13, startAngle: st, endAngle: st + 1.2, clockwise: false); c.strokePath()
             c.setStrokeColor(rgb255(a2, 0.9)); c.beginPath(); c.addArc(center: .zero, radius: 13, startAngle: st + .pi, endAngle: st + .pi + 1.2, clockwise: false); c.strokePath()
@@ -625,7 +644,7 @@ final class ScreenFX {
             c.fillEllipse(in: CGRect(x: -7.5, y: -10, width: 15, height: 12))
             for (x, y) in [(-8.0, 4.0), (-3.0, 9.0), (3.0, 9.0), (8.0, 4.0)] { c.fillEllipse(in: CGRect(x: x - 3, y: y - 3.8, width: 6, height: 7.6)) }
         } }
-        return ([.clover: clovers, .leaves: leaves, .sakura: petals, .bubble: bubbles, .paws: paws, .money: notes, .cherry: [cherry], .sports: sports, .fastfood: fastfood], glint)
+        return ([.clover: clovers, .leaves: leaves, .sakura: petals, .bubble: bubbles, .paws: paws, .money: notes, .cherry: [cherry], .sports: sports, .fastfood: fastfood, .paperplane: planes], glint)
     }
 
     static func makeEmoji(_ e: String) -> CGImage {
@@ -865,7 +884,7 @@ final class App: NSObject, NSApplicationDelegate {
 
     /// 화면 효과는 off / snow / stars 중 하나만. (이전 버전의 fxSnow/fxStars 설정이 있으면 한 번 변환)
     var fxMode: String {
-        if let m = defaults.string(forKey: "fxMode") { return m }
+        if let m = defaults.string(forKey: "fxMode") { return m == "off" || fxModes.contains(where: { $0.key == m && $0.enabled }) ? m : "off" }
         return defaults.bool(forKey: "fxStars") ? "stars" : (defaults.bool(forKey: "fxSnow") ? "snow" : "off")
     }
     /// 저장된 파티클 양 이름 (예전 이름이면 새 이름으로 변환)
@@ -888,7 +907,7 @@ final class App: NSObject, NSApplicationDelegate {
         updateIcon()
     }
     func updateIcon() {
-        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint", "money": "banknote", "cherry": "heart.fill", "sports": "basketball", "fastfood": "fork.knife"][fxMode] ?? "moon.zzz"
+        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint", "money": "banknote", "cherry": "heart.fill", "sports": "basketball", "fastfood": "fork.knife", "paperplane": "paperplane"][fxMode] ?? "moon.zzz"
         // 메뉴바 높이(약 24pt) 안에서 낼 수 있는 가장 큰 크기로 그린다
         let cfg = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
         let img = NSImage(systemSymbolName: sym, accessibilityDescription: "Typefall")?.withSymbolConfiguration(cfg)
@@ -905,9 +924,9 @@ final class App: NSObject, NSApplicationDelegate {
         m.addItem(.separator())
         let fxMenu = NSMenu()
         let curFx = fxMode
-        for (key, title) in [("off", "끄기"), ("snow", "눈"), ("stars", "별가루"), ("clover", "네잎클로버"), ("leaves", "낙엽"), ("sakura", "벚꽃"), ("bubble", "비눗방울"), ("paws", "고양이 발자국"), ("money", "지폐"), ("cherry", "체리"), ("sports", "스포츠 공"), ("fastfood", "패스트푸드")] { // 하나만 선택 가능
-            let i = NSMenuItem(title: title, action: #selector(pickFxMode(_:)), keyEquivalent: "")
-            i.target = self; i.representedObject = key; i.state = key == curFx ? .on : .off
+        for m in [FxMode(key: "off", title: "끄기")] + fxModes where m.enabled { // 하나만 선택 가능. enabled:false 인 효과는 목록에서 뺀다
+            let i = NSMenuItem(title: m.title, action: #selector(pickFxMode(_:)), keyEquivalent: "")
+            i.target = self; i.representedObject = m.key; i.state = m.key == curFx ? .on : .off
             fxMenu.addItem(i)
         }
         let fxItem = NSMenuItem(title: "화면 효과", action: nil, keyEquivalent: ""); fxItem.submenu = fxMenu

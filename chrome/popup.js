@@ -1,3 +1,8 @@
+// 화면 효과 목록은 코어의 효과 메타데이터(enabled)에서 만든다
+(() => {
+  const sel = document.getElementById('mode');
+  for (const [id, ko] of [['off', '끄기'], ...self.Typefall.enabledEffects().map((e) => [e.id, e.ko])]) sel.add(new Option(ko, id));
+})();
 const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, specialKey: '', specialKeyLabel: '' };
 const LEGACY_DENSITY = { low: 'xs', midlow: 's', mid: 's', midhigh: 'm', high: 'l' }; // 이전 버전에서 저장된 값
 chrome.storage.sync.get(DEFAULTS, (v) => {
@@ -30,3 +35,4 @@ addEventListener('keydown', (e) => {
   const label = e.key.length === 1 ? e.key.toUpperCase() : e.key;
   chrome.storage.sync.set({ specialKey: e.code, specialKeyLabel: label }); showKey(e.code, label);
 });
+

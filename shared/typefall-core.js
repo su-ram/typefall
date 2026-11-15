@@ -100,6 +100,7 @@
       for (let i = 1; i < pts.length; i++) x.lineTo(pts[i][0], pts[i][1]);
       x.closePath(); x.fill();
     };
+    const shade = (hex, k) => { const c = hexRgb(hex).map((v) => clamp(Math.round(v * k), 0, 255)); return `rgb(${c[0]},${c[1]},${c[2]})`; };
     const dotOf = (hex) => mk(16, (x) => glow(x, 8, 8, hexRgb(hex), 8, 1));
     const tints = tint ? (Array.isArray(tint) ? tint : [tint]) : null;   // 색 하나 또는 여러 색(레인보우)
     const dots = (tints || ['#BFE0FF']).map(dotOf);
@@ -146,27 +147,25 @@
       for (let k = 0; k < 4; k++) { x.save(); x.rotate(k * Math.PI / 2); heart(x, c); x.restore(); }
       glow(x, 0, 0, [255, 255, 255], 4, 0.25);
     }));
-    const maple = (c) => mk(40, (x) => {
-      x.translate(20, 20); x.fillStyle = c; x.strokeStyle = c; x.lineJoin = 'round'; x.lineWidth = 2.2;
-      x.beginPath();
-      for (let i = 0; i < 10; i++) { const r = i % 2 ? 8 : 16, a = -Math.PI / 2 + i * Math.PI / 5; x[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r + 1); }
-      x.closePath(); x.fill(); x.stroke();
-      x.strokeStyle = 'rgba(80,30,0,0.45)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, 19); x.lineTo(0, -10); x.stroke();
+    const ginkgo = (c) => mk(40, (x) => {   // 은행잎(참고 이미지): 넓은 부채꼴 + 위쪽 좁고 깊은 갈라짐 + 물결 가장자리 + 촘촘한 부채살 잎맥 + 길게 휜 잎자루
+      x.translate(20, 20); x.lineJoin = 'round'; x.lineCap = 'round';
+      const leaf = () => {
+        x.beginPath(); x.moveTo(0, 9);
+        x.bezierCurveTo(-5, 7, -13, 5, -18.5, 2); x.bezierCurveTo(-20.5, -1, -19.5, -4, -17, -6.5); x.bezierCurveTo(-14.5, -9.5, -11.5, -12, -8, -13.5);
+        x.bezierCurveTo(-5.5, -15, -3, -15.8, -1.2, -14.5); x.lineTo(0, -4.5); x.lineTo(1.2, -14.5);
+        x.bezierCurveTo(3, -15.8, 5.5, -15, 8, -13.5); x.bezierCurveTo(11.5, -12, 14.5, -9.5, 17, -6.5); x.bezierCurveTo(19.5, -4, 20.5, -1, 18.5, 2);
+        x.bezierCurveTo(13, 5, 5, 7, 0, 9); x.closePath();
+      };
+      x.strokeStyle = shade(c, 0.9); x.lineWidth = 1.5; x.beginPath(); x.moveTo(0, 9); x.quadraticCurveTo(1.4, 15, -1.6, 19.5); x.stroke();   // 잎자루
+      leaf(); x.fillStyle = c; x.fill();
+      x.save(); leaf(); x.clip();
+      glow(x, 0, -2, [255, 255, 255], 15, 0.45);                    // 가운데는 연하게
+      x.strokeStyle = shade(c, 0.82); x.globalAlpha = 0.3; x.lineWidth = 3.4; leaf(); x.stroke(); x.globalAlpha = 1;   // 가장자리는 살짝 진하게
+      x.strokeStyle = shade(c, 0.82); x.lineWidth = 0.5; x.beginPath();   // 부채살 잎맥
+      for (let k = -7; k <= 7; k++) { const a = k * 0.215; if (Math.abs(a) < 0.04) continue; x.moveTo(0, 9); x.lineTo(Math.sin(a) * 21, 2 - Math.cos(a) * 17.5); }
+      x.stroke(); x.restore();
     });
-    const oval = (c) => mk(40, (x) => {
-      x.translate(20, 20); x.fillStyle = c; x.beginPath(); x.moveTo(0, -17);
-      x.bezierCurveTo(13, -8, 13, 8, 0, 15); x.bezierCurveTo(-13, 8, -13, -8, 0, -17); x.closePath(); x.fill();
-      x.strokeStyle = 'rgba(80,30,0,0.45)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, 19); x.lineTo(0, -10); x.stroke();
-    });
-    const ginkgo = (c) => mk(40, (x) => {   // 은행잎: 부채꼴, 윗부분 가운데가 살짝 갈라짐
-      x.translate(20, 20); x.fillStyle = c; x.beginPath(); x.moveTo(0, 17); x.lineTo(-15, -6);
-      x.bezierCurveTo(-16, -14, -6, -17, 0, -9); x.bezierCurveTo(6, -17, 16, -14, 15, -6); x.closePath(); x.fill();
-      x.strokeStyle = 'rgba(120,80,0,0.35)'; x.lineWidth = 1; x.beginPath();
-      for (const vx of [-9, -4.5, 0, 4.5, 9]) { x.moveTo(0, 16); x.lineTo(vx, -8); }
-      x.stroke();
-    });
-    spr.leaves = [maple('#E8501A'), maple('#F08A24'), maple('#D9342B'), maple('#F2B233'), oval('#C8741F'), oval('#E8A42A'), oval('#A8501A'),
-      ginkgo('#F2C94C'), ginkgo('#E8B923'), ginkgo('#F5D76E')];
+    spr.leaves = ['#FBD88A', '#F7C95C', '#F2B544', '#EFA23A', '#E8B94A', '#D9B24A'].map(ginkgo);   // 낙엽은 은행잎만(노랑·금색·주황 계열)
     spr.petals = [['#FF9DBB', '#FFE3EC'], ['#FFB3CB', '#FFF0F5'], ['#FFC2D6', '#FFFFFF']].map(([a, b]) => mk(24, (x) => {
       x.translate(12, 12);
       x.fillStyle = a; x.beginPath(); x.moveTo(0, 10);
@@ -184,32 +183,38 @@
     ];
     spr.bubbles = BUBBLE_STYLES.map(([ring, a1, a2, st, hl, hs]) => mk(32, (x) => {
       x.translate(16, 16); glow(x, 0, 0, ring.split(',').map(Number), 14, 0.22);
-      x.lineWidth = 1.6; x.strokeStyle = `rgba(${ring},0.85)`; x.beginPath(); x.arc(0, 0, 13, 0, TAU); x.stroke();
+      x.lineWidth = 0.8; x.strokeStyle = `rgba(${ring},0.85)`; x.beginPath(); x.arc(0, 0, 13, 0, TAU); x.stroke();
       x.strokeStyle = `rgba(${a1},0.9)`; x.beginPath(); x.arc(0, 0, 13, st, st + 1.2); x.stroke();
       x.strokeStyle = `rgba(${a2},0.9)`; x.beginPath(); x.arc(0, 0, 13, st + Math.PI, st + Math.PI + 1.2); x.stroke();
       x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.ellipse(Math.cos(hl) * 7, Math.sin(hl) * 7, 3.2 * hs, 1.8 * hs, hl + Math.PI / 2, 0, TAU); x.fill();
     }));
     // ── 리본 🎀 / 프레첼 🥨 / 지폐 💵 (이모지 모양을 참고해 직접 그림) ──
-    const shade = (hex, k) => { const c = hexRgb(hex).map((v) => clamp(Math.round(v * k), 0, 255)); return `rgb(${c[0]},${c[1]},${c[2]})`; };
-    const bow = (c) => mk(40, (x) => {
-      x.translate(20, 21); x.lineJoin = 'round';
-      const dark = shade(c, 0.7), mid = shade(c, 0.86), light = shade(c, 1.25);
-      const tail = (sgn) => { x.beginPath(); x.moveTo(sgn * 1, 3); x.lineTo(sgn * 13, 11); x.lineTo(sgn * 10.5, 13.5); x.lineTo(sgn * 11.5, 17.5); x.lineTo(sgn * 5, 14.5); x.lineTo(sgn * 0, 7); x.closePath(); };
-      const wing = (sgn) => { x.beginPath(); x.moveTo(sgn * 2, 0);
-        x.bezierCurveTo(sgn * 3, -17, sgn * 20, -20, sgn * 19.5, -5); x.bezierCurveTo(sgn * 19, 10, sgn * 6, 11, sgn * 2, 2); x.closePath(); };
-      x.fillStyle = mid; x.strokeStyle = dark; x.lineWidth = 1.3;
-      tail(-1); x.fill(); x.stroke(); tail(1); x.fill(); x.stroke();
-      for (const sgn of [-1, 1]) {
-        wing(sgn); x.fillStyle = c; x.fill(); x.stroke();
-        x.fillStyle = mid; x.beginPath(); x.moveTo(sgn * 3, 0.5);   // 안쪽 접힌 면
-        x.bezierCurveTo(sgn * 6, -9, sgn * 15, -11, sgn * 15, -4.5); x.bezierCurveTo(sgn * 15, 3, sgn * 8, 5, sgn * 3, 1.5); x.closePath(); x.fill();
-        x.fillStyle = light; x.globalAlpha = 0.55; x.beginPath(); x.ellipse(sgn * 11, -14, 4.6, 1.8, sgn * -0.35, 0, TAU); x.fill(); x.globalAlpha = 1;   // 윗면 반사광
+    const bow = (c) => mk(40, (x) => {   // 통통한 리본 매듭: 둥근 고리 두 개 + 땡땡이 무늬 + 짧은 꼬리
+      x.translate(20, 20); x.lineJoin = 'round';
+      const dark = shade(c, 0.68), mid = shade(c, 0.84), light = shade(c, 1.3);
+      x.lineWidth = 1.3; x.strokeStyle = dark;
+      for (const sgn of [-1, 1]) {   // 꼬리
+        x.fillStyle = mid; x.beginPath(); x.moveTo(sgn * 1, 4); x.lineTo(sgn * 9, 15); x.lineTo(sgn * 6, 14.5); x.lineTo(sgn * 5.5, 17.5); x.lineTo(sgn * 0, 8); x.closePath(); x.fill(); x.stroke();
       }
-      x.fillStyle = c; x.strokeStyle = dark; x.beginPath();   // 매듭
-      x.moveTo(-4, -3.5); x.quadraticCurveTo(0, -5.5, 4, -3.5); x.quadraticCurveTo(6, 0.5, 4, 4.5); x.quadraticCurveTo(0, 6, -4, 4.5); x.quadraticCurveTo(-6, 0.5, -4, -3.5); x.closePath(); x.fill(); x.stroke();
-      x.fillStyle = light; x.globalAlpha = 0.6; x.beginPath(); x.ellipse(-1.2, -1.6, 1.8, 1.1, -0.4, 0, TAU); x.fill(); x.globalAlpha = 1;
+      for (const sgn of [-1, 1]) {   // 고리(바깥 + 안쪽 구멍)
+        x.fillStyle = c; x.beginPath(); x.moveTo(sgn * 2, 0); x.bezierCurveTo(sgn * 4, -16, sgn * 19, -17, sgn * 19, -6); x.bezierCurveTo(sgn * 19, 6, sgn * 7, 9, sgn * 2, 2); x.closePath(); x.fill(); x.stroke();
+        x.fillStyle = dark; x.beginPath(); x.moveTo(sgn * 4.5, -0.5); x.bezierCurveTo(sgn * 6, -9, sgn * 14, -10, sgn * 14, -5); x.bezierCurveTo(sgn * 14, 0, sgn * 9, 3, sgn * 4.5, 1.5); x.closePath(); x.fill();
+        x.save(); x.beginPath(); x.moveTo(sgn * 2, 0); x.bezierCurveTo(sgn * 4, -16, sgn * 19, -17, sgn * 19, -6); x.bezierCurveTo(sgn * 19, 6, sgn * 7, 9, sgn * 2, 2); x.closePath(); x.clip();
+        x.fillStyle = 'rgba(255,255,255,0.8)'; for (const [px, py] of [[sgn * 12, -13], [sgn * 17, -8], [sgn * 16, 2], [sgn * 9, 6], [sgn * 8, -15]]) { x.beginPath(); x.arc(px, py, 1.25, 0, TAU); x.fill(); }
+        x.restore();
+        x.fillStyle = light; x.globalAlpha = 0.5; x.beginPath(); x.ellipse(sgn * 11, -13.5, 4.5, 1.6, sgn * -0.3, 0, TAU); x.fill(); x.globalAlpha = 1;
+      }
+      x.fillStyle = c; x.beginPath(); x.arc(0, 1, 4.6, 0, TAU); x.fill(); x.stroke();   // 매듭
+      x.fillStyle = light; x.globalAlpha = 0.6; x.beginPath(); x.ellipse(-1.3, -0.7, 1.6, 1, -0.4, 0, TAU); x.fill(); x.globalAlpha = 1;
     });
-    spr.ribbons = ['#F2557A', '#FF8FB1', '#F2B233', '#4F8DF0', '#9B5DE5'].map(bow);
+    const streamer = (c) => mk(40, (x) => {   // 돌돌 말린 새틴 리본 띠
+      x.translate(20, 20); x.lineCap = 'butt'; x.lineJoin = 'round';
+      const path = () => { x.beginPath(); x.moveTo(-14, -15); x.bezierCurveTo(6, -18, 15, -6, 3, -1); x.bezierCurveTo(-10, 4, -7, 15, 14, 15); };
+      x.strokeStyle = shade(c, 0.66); x.lineWidth = 8.4; path(); x.stroke();
+      x.strokeStyle = c; x.lineWidth = 6.4; path(); x.stroke();
+      x.strokeStyle = shade(c, 1.3); x.globalAlpha = 0.6; x.lineWidth = 1.6; x.save(); x.translate(-0.9, -0.9); path(); x.stroke(); x.restore(); x.globalAlpha = 1;
+    });
+    spr.ribbons = ['#F2557A', '#FF8FB1', '#4F8DF0', '#9B5DE5', '#F2B233'].map(bow).concat(['#F2557A', '#4FC3A1', '#F2B233', '#9B5DE5'].map(streamer));
     spr.pretzels = [['#8A4B16', '#B8672A', '#E0A25A'], ['#7A3F10', '#A85C22', '#D69A50']].map(([dk, md, lt]) => mk(40, (x) => {
       x.translate(20, 20); x.lineCap = 'round'; x.lineJoin = 'round';
       const arc = () => { x.beginPath(); x.moveTo(-11, 11); x.bezierCurveTo(-7, 18, 7, 18, 11, 11); };
@@ -244,15 +249,25 @@
       for (let i = 0; i < n * 2; i++) { const a = -Math.PI / 2 + i * Math.PI / n, rr = i % 2 ? r * 0.35 : r; x[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr * 1.2, cy + Math.sin(a) * rr * 0.7); }
       x.closePath(); x.fill();
     };
-    const strawberry = mk(40, (x) => {
-      x.translate(20, 21); x.lineJoin = 'round';
-      x.beginPath(); x.moveTo(0, 17); x.bezierCurveTo(-8, 13, -15, 3, -13, -6); x.bezierCurveTo(-12, -12, -5, -13, 0, -10);
-      x.bezierCurveTo(5, -13, 12, -12, 13, -6); x.bezierCurveTo(15, 3, 8, 13, 0, 17); x.closePath();
-      x.fillStyle = '#E8344A'; x.fill(); x.strokeStyle = '#B81F34'; x.lineWidth = 1.2; x.stroke();
-      glow(x, -5, -3, [255, 140, 150], 9, 0.55);
-      x.fillStyle = '#FFE08A';   // 씨
-      for (const [px, py] of [[-7, -3], [0, -4], [7, -3], [-9, 3], [-3, 2], [4, 2], [9, 4], [-5, 8], [1, 8], [5, 11], [-1, 13]]) { x.beginPath(); x.ellipse(px, py, 1, 1.5, 0, 0, TAU); x.fill(); }
-      leafStar(x, 0, -11, 5, 8, '#3BAA4E'); x.fillStyle = '#2E8B3E'; x.fillRect(-1, -17, 2, 6);
+    const strawberry = mk(40, (x) => {   // 어깨가 넓고 통통한 딸기, 윤기 + 큰 씨 + 늘어진 꼭지잎
+      x.translate(20, 21); x.lineJoin = 'round'; x.lineCap = 'round';
+      const body = () => { x.beginPath(); x.moveTo(0, 18); x.bezierCurveTo(-7, 16, -16, 6, -15.5, -4); x.bezierCurveTo(-15, -11, -8, -14, 0, -12); x.bezierCurveTo(8, -14, 15, -11, 15.5, -4); x.bezierCurveTo(16, 6, 7, 16, 0, 18); x.closePath(); };
+      body(); x.fillStyle = '#E02F45'; x.fill();
+      x.save(); body(); x.clip();
+      glow(x, 7, 9, [150, 15, 35], 14, 0.55);   // 아래 오른쪽 그늘
+      glow(x, -6, -4, [255, 150, 160], 11, 0.6);   // 위 왼쪽 윤기
+      x.restore();
+      body(); x.strokeStyle = '#A81A2E'; x.lineWidth = 1.2; x.stroke();
+      for (const [px, py, a] of [[-8, -4, -0.3], [0, -6, 0], [8, -4, 0.3], [-11, 2, -0.5], [-4, 1, -0.15], [4, 1, 0.15], [11, 2, 0.5], [-7, 8, -0.4], [0, 7, 0], [7, 8, 0.4], [-3, 13, -0.2], [3, 13, 0.2]]) {   // 씨(작은 물방울)
+        x.save(); x.translate(px, py); x.rotate(a); x.fillStyle = '#FFE58A'; x.strokeStyle = 'rgba(150,20,35,0.55)'; x.lineWidth = 0.7;
+        x.beginPath(); x.ellipse(0, 0, 1.1, 1.8, 0, 0, TAU); x.fill(); x.stroke(); x.restore();
+      }
+      x.fillStyle = 'rgba(255,255,255,0.5)'; x.beginPath(); x.ellipse(-9.5, -7, 3, 1.5, -0.7, 0, TAU); x.fill();
+      x.fillStyle = '#3BAA4E'; x.strokeStyle = '#25803A'; x.lineWidth = 1;   // 꼭지잎: 어깨 위로 늘어짐
+      for (const a of [-2.7, -2.0, -1.1, -0.4, 0.3, -1.57]) {
+        x.save(); x.translate(0, -12.5); x.rotate(a + Math.PI / 2); x.beginPath(); x.moveTo(0, 0); x.quadraticCurveTo(2.6, 4, 0, 9); x.quadraticCurveTo(-2.6, 4, 0, 0); x.closePath(); x.fill(); x.stroke(); x.restore();
+      }
+      x.strokeStyle = '#2E8B3E'; x.lineWidth = 2; x.beginPath(); x.moveTo(0, -12); x.quadraticCurveTo(1, -16, 3.5, -18); x.stroke();   // 꼭지
     });
     const carrot = mk(40, (x) => {
       x.translate(20, 20); x.lineJoin = 'round';
@@ -382,6 +397,17 @@
     });
     spr.sports = [basketball, rugby, baseball, tennis];   // 스포츠 공 한 효과로 묶음(농구·럭비·야구·테니스)
     spr.billiards = [pool(8, '#1B1B1B'), pool(1, '#F6C42B'), pool(2, '#2457C5'), pool(3, '#D1352B'), pool(4, '#6A2C91')];
+    // ── 종이비행기 ✈ (코가 +x 방향): 윗날개 밝게 / 아랫날개 중간 / 가운데 접힌 면 어둡게 ──
+    const plane = (c) => mk(40, (x) => {
+      x.translate(20, 20); x.lineJoin = 'round'; x.lineWidth = 0.9; x.strokeStyle = 'rgba(70,80,100,0.6)';
+      const tri = (pts, fill) => { x.fillStyle = fill; x.beginPath(); x.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) x.lineTo(pts[i][0], pts[i][1]); x.closePath(); x.fill(); x.stroke(); };
+      tri([[18, 1], [-16, 12], [-6, 2]], shade(c, 0.86));          // 아랫날개
+      tri([[18, 1], [-6, 2], [-11, 7]], shade(c, 0.66));           // 가운데 접힌 면(그늘)
+      tri([[18, 1], [-16, -12], [-6, 0]], shade(c, 1.0));          // 윗날개
+      x.strokeStyle = 'rgba(70,80,100,0.45)'; x.beginPath(); x.moveTo(18, 1); x.lineTo(-6, 1); x.stroke();   // 가운데 접힌 선
+      x.fillStyle = 'rgba(255,255,255,0.55)'; x.beginPath(); x.moveTo(14, -0.5); x.lineTo(-8, -8); x.lineTo(-4, -2); x.closePath(); x.fill();
+    });
+    spr.planes = ['#FFFFFF', '#BFE3FF', '#FFD6E7', '#FFF2B3', '#D8F5D0'].map(plane);
     spr.paws = ['#8D6E63', '#F4A6B8', '#9AA5B1', '#FFB74D'].map((c) => mk(32, (x) => {
       x.translate(16, 16); x.fillStyle = c;
       const el = (cx, cy, rx, ry, rot) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot || 0, 0, TAU); x.fill(); };
@@ -412,10 +438,38 @@
     fastfood:  { max: 30,  size: [18, 28], vy: [45, 90], drift: [15, 35], spin: [-1.5, 1.5], rot: true },
     sports:    { max: 30,  size: [16, 26], vy: [45, 90], drift: [10, 25], spin: [-2, 2], rot: true },
     billiard:  { max: 30,  size: [14, 22], vy: [45, 90], drift: [10, 25], spin: [-2, 2], rot: true },
+    paperplane: { max: 25, size: [18, 28], vy: [50, 90], drift: [40, 80], spin: [0, 0], glide: true },
     paws:      { max: 40,  size: [14, 24], vy: [40, 80], drift: [8, 20],  spin: [-0.3, 0.3], rot: true, alpha: [0.6, 0.9] },
   };
   const POP_TIME = 0.2;   // 방울이 터지는 시간(초)
-  const NATURE_KINDS = ['clover', 'leaves', 'sakura', 'bubble', 'paws', 'ribbon', 'pretzel', 'money', 'strawberry', 'cherry', 'carrot', 'mandarin', 'tomato', 'fastfood', 'sports', 'billiard'];
+  const NATURE_KINDS = ['clover', 'leaves', 'sakura', 'bubble', 'paws', 'ribbon', 'pretzel', 'money', 'strawberry', 'cherry', 'carrot', 'mandarin', 'tomato', 'fastfood', 'sports', 'billiard', 'paperplane'];
+  /**
+   * 효과 메타데이터 (내부용, 코드로만 관리). 메뉴·팝업의 효과 목록은 여기서 만든다.
+   * enabled: false 로 두면 목록에서 빠진다(시안·보류 효과). 저장된 설정이 꺼진 효과를 가리키면 끄기로 취급.
+   */
+  const EFFECTS = [
+    { id: 'snow', ko: '눈', en: 'Snow', enabled: true },
+    { id: 'stars', ko: '별가루', en: 'Stardust', enabled: true },
+    { id: 'clover', ko: '네잎클로버', en: 'Four-leaf clover', enabled: true },
+    { id: 'leaves', ko: '낙엽', en: 'Autumn leaves', enabled: true },
+    { id: 'sakura', ko: '벚꽃', en: 'Cherry blossoms', enabled: true },
+    { id: 'bubble', ko: '비눗방울', en: 'Bubbles', enabled: true },
+    { id: 'paws', ko: '고양이 발자국', en: 'Cat paws', enabled: true },
+    { id: 'money', ko: '지폐', en: 'Banknotes', enabled: true },
+    { id: 'cherry', ko: '체리', en: 'Cherries', enabled: true },
+    { id: 'sports', ko: '스포츠 공', en: 'Sports balls', enabled: true },
+    { id: 'fastfood', ko: '패스트푸드', en: 'Fast food', enabled: true },
+    { id: 'paperplane', ko: '종이비행기', en: 'Paper planes', enabled: true },
+    // 시안 단계(스프라이트만 있고 메뉴에는 노출하지 않음)
+    { id: 'ribbon', ko: '리본', en: 'Ribbons', enabled: false },
+    { id: 'pretzel', ko: '프레첼', en: 'Pretzels', enabled: false },
+    { id: 'strawberry', ko: '딸기', en: 'Strawberries', enabled: false },
+    { id: 'carrot', ko: '당근', en: 'Carrots', enabled: false },
+    { id: 'mandarin', ko: '귤', en: 'Mandarins', enabled: false },
+    { id: 'tomato', ko: '토마토', en: 'Tomatoes', enabled: false },
+    { id: 'billiard', ko: '당구공', en: 'Pool balls', enabled: false },
+  ];
+  const enabledEffects = () => EFFECTS.filter((e) => e.enabled);
   class Falling {
     constructor(kind) {
       this.kind = kind === true ? 'stars' : kind === false || !kind ? 'snow' : kind;
@@ -434,13 +488,14 @@
           x: rnd(0, W), y: -10, vy: rnd(c.vy[0], c.vy[1]),
           phase: rnd(0, TAU), drift: rnd(c.drift[0], c.drift[1]), spin: rnd(c.spin[0], c.spin[1]), alpha: c.alpha ? rnd(c.alpha[0], c.alpha[1]) : rnd(0.55, 0.95),
           rot0: c.rot ? rnd(0, TAU) : 0, tw: rnd(2, 5.5), age: 0,
+          popAt: c.popAt ? (Math.random() < 0.6 ? rnd(0.12, c.popAt) : c.popAt) : 0,   // 방울의 60%는 중간에서 터지고 나머지는 화면 90% 까지 내려옴
         });
       }
       const t = this.t;
       this.flakes = this.flakes.filter((f) => {
         if (f.popT !== undefined) { f.popT += dt; return f.popT < POP_TIME; }   // 터지는 중: 제자리에서 커지며 사라짐
         f.y += f.vy * dt; f.x += Math.sin(t * 0.8 + f.phase) * f.drift * dt;
-        f.age += dt; if (c.popAt && f.y >= c.popAt * H) f.popT = 0;
+        f.age += dt; if (f.popAt && f.y >= f.popAt * H) f.popT = 0;
         if (this.stars && trail.length && this.dust.length < maxD && Math.random() < dt * 5) { // 꼬리 가루
           const life = rnd(0.7, 1.3);
           this.dust.push({ img: pick(trail), size: rnd(3, 7), x: f.x + rnd(-4, 4), y: f.y + rnd(-6, 2), vy: rnd(6, 22), life, max: life, a: rnd(0.5, 0.9) });
@@ -459,7 +514,8 @@
           if (c.fade) a *= clamp(f.age / c.fade, 0, 1);
           if (f.popT !== undefined) { const k = f.popT / POP_TIME; a *= 1 - k; sc = 1 + 0.6 * k; }
           ctx.globalAlpha = a; if (sc !== 1) ctx.scale(sc, sc);
-          if (c.rot) ctx.rotate(f.rot0 + t * f.spin * 0.5);
+          if (c.glide) ctx.rotate(Math.atan2(f.vy, Math.cos(t * 0.8 + f.phase) * 0.8 * f.drift));   // 진행 방향으로 코를 향함
+          else if (c.rot) ctx.rotate(f.rot0 + t * f.spin * 0.5);
           if (c.flip) ctx.scale(Math.max(0.2, Math.abs(Math.cos(t * 1.6 + f.phase))), 1);   // 뒤집히며 팔랑
         }
         ctx.drawImage(f.img, -f.size / 2, -f.size / 2, f.size, f.size);
@@ -615,7 +671,7 @@
       this.starsF.step(dt, m === 'stars' && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, this.spr.stars, this.spr.specks);
       const imgs = { clover: this.spr.clovers, leaves: this.spr.leaves, sakura: this.spr.petals, bubble: this.spr.bubbles, paws: this.spr.paws, ribbon: this.spr.ribbons, pretzel: this.spr.pretzels, money: this.spr.bills,
         strawberry: this.spr.strawberries, cherry: this.spr.cherries, carrot: this.spr.carrots, mandarin: this.spr.mandarins, tomato: this.spr.tomatoes, fastfood: this.spr.fastfood,
-        sports: this.spr.sports, billiard: this.spr.billiards };
+        sports: this.spr.sports, billiard: this.spr.billiards, paperplane: this.spr.planes };
       for (const k in this.nature) this.nature[k].step(dt, m === k && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, imgs[k], []);
       this.xmas.update(dt, this.W, this.H, this.spr);
     }
@@ -628,7 +684,7 @@
     }
   }
 
-  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, EMOJIS, NATURE_KINDS, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
+  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, EMOJIS, NATURE_KINDS, EFFECTS, enabledEffects, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Typefall = api;
 })(typeof self !== 'undefined' ? self : this);

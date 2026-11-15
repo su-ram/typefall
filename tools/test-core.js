@@ -100,5 +100,10 @@ for (const m of T.NATURE_KINDS) {
   check('기본: 지정 키 없음 → 반응 없음', tf.key('KeyJ'), false);
   tf.setOptions({ specialKey: 'KeyJ' });
   check('지정 키 → 효과', tf.key('KeyJ'), true); check('효과 발생', tf.xmas.active, true); check('다른 키는 무시', tf.key('KeyK'), false); }
+// 효과 메타데이터(내부용): 모든 효과가 정의돼 있고 enabled 만 목록에 나온다
+{ const ids = T.EFFECTS.map((e) => e.id), known = ['snow', 'stars', ...T.NATURE_KINDS];
+  check('메타데이터에 모든 효과가 있음', known.every((k) => ids.includes(k)) && ids.every((k) => known.includes(k)), true);
+  check('enabledEffects 는 enabled 만', T.enabledEffects().every((e) => e.enabled) && T.enabledEffects().length === T.EFFECTS.filter((e) => e.enabled).length, true);
+  check('모든 효과에 ko/en 이름', T.EFFECTS.every((e) => e.ko && e.en), true); }
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exit(fails ? 1 : 0);
