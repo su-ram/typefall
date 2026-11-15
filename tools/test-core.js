@@ -26,7 +26,7 @@ const sim = (mode, extra = {}) => {
   for (let i = 0; i < 60 * 8; i++) { // 8초: 초당 10타
     t += 1000 / 60; if (i % 6 === 0) tf.hit(t);
     tf.update(1 / 60, t); tf.draw(ctx);
-    peak = Math.max(peak, tf.snow.count + tf.starsF.count); peakX = Math.max(peakX, tf.xmas.parts.length);
+    peak = Math.max(peak, tf.snow.count + tf.starsF.count + Object.values(tf.nature).reduce((n, f) => n + f.count, 0)); peakX = Math.max(peakX, tf.xmas.parts.length);
   }
   const bad = [...tf.snow.flakes, ...tf.starsF.flakes, ...tf.xmas.parts].some((p) => !isFinite(p.x) || !isFinite(p.y));
   for (let i = 0; i < 60 * 40; i++) { t += 1000 / 60; tf.update(1 / 60, t); tf.draw(ctx); } // 40초 방치
@@ -94,5 +94,13 @@ check('기본 배율 = 1.0(보통)', T.DENSITY.m, 1);
   check('연속 트리거에도 트리 최대 4개', overlapOk, true);
   check('연속 트리거에도 그룹 밖 중복 없음', uniqOk, true);
 }
+// 새 모드 / 윤슬 / 지정 키
+for (const m of ['clover', 'leaves', 'sakura']) {
+  const r = sim(m); check(`${m} 개수(0<n≤70)`, r.peak, (v) => v > 0 && v <= 70); check(`${m} NaN 없음`, r.bad, false); check(`${m} 방치 후 active=false`, r.tf.active, false);
+}
+{ const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ xmas: false });
+  check('기본: 지정 키 없음 → 반응 없음', tf.key('KeyJ'), false);
+  tf.setOptions({ specialKey: 'KeyJ' });
+  check('지정 키 → 효과', tf.key('KeyJ'), true); check('효과 발생', tf.xmas.active, true); check('다른 키는 무시', tf.key('KeyK'), false); }
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exit(fails ? 1 : 0);

@@ -14,17 +14,18 @@ const SELFTEST = argVal('--selftest');
 const OUT_DIR = argVal('--out') || path.join(process.cwd(), 'selftest-out');
 
 // ── 설정 ───────────────────────────────────────────────────────────────
-const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, loginInit: false };
+const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, loginInit: false, specialKey: 0, specialKeyLabel: '' };  // specialKey: uiohook 키코드(0 = 사용 안 함)
 let settings = { ...DEFAULTS };
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
 function loadSettings() {
   try {
     const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
-    if (['off', 'snow', 'stars'].includes(s.mode)) settings.mode = s.mode;
+    if (['off', 'snow', 'stars', 'clover', 'leaves', 'sakura'].includes(s.mode)) settings.mode = s.mode;
     if (s.tint in core.TINTS) settings.tint = s.tint;
     settings.density = core.normDensity(s.density);   // 예전 값(low/midlow/…)은 같은 양의 새 값으로 변환
     if (typeof s.xmas === 'boolean') settings.xmas = s.xmas;
+    if (Number.isInteger(s.specialKey) && s.specialKey > 0) { settings.specialKey = s.specialKey; settings.specialKeyLabel = String(s.specialKeyLabel || '').slice(0, 20); }
     if (typeof s.loginInit === 'boolean') settings.loginInit = s.loginInit;
   } catch (_) { /* 처음 실행이거나 손상 → 기본값 */ }
 }
@@ -35,16 +36,18 @@ function saveSettings() {
 // ── 문구(한국어/영어) ──────────────────────────────────────────────────
 const KO = (app.getLocale() || 'en').toLowerCase().startsWith('ko');
 const T = KO ? {
-  effect: '화면 효과', modes: { off: '끄기', snow: '눈', stars: '별가루' },
+  effect: '화면 효과', modes: { off: '끄기', snow: '눈', stars: '별가루', clover: '네잎클로버', leaves: '낙엽', sakura: '벚꽃' },
   tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이', rainbow: '레인보우' },
   density: '파티클 양', densities: { xs: '아주 조금', s: '조금', m: '보통', l: '많이', xl: '아주 많이' },
   xmas: '크리스마스 효과 ("크리스마스" 입력 시)', xmasPreview: '크리스마스 효과 미리보기',
+  specialKey: (k) => `특별 효과 키: ${k || '없음'}`, setKey: '키 지정… (다음에 누르는 키)', pressKey: '지정할 키를 누르세요…', clearKey: '지정 해제',
   login: '로그인 시 자동 실행', quit: '종료',
 } : {
-  effect: 'Effect', modes: { off: 'Off', snow: 'Snow', stars: 'Stardust' },
+  effect: 'Effect', modes: { off: 'Off', snow: 'Snow', stars: 'Stardust', clover: 'Four-leaf clover', leaves: 'Autumn leaves', sakura: 'Cherry blossoms' },
   tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', yellow: 'Yellow', sky: 'Sky', rainbow: 'Rainbow' },
   density: 'Particle amount', densities: { xs: 'Very little', s: 'A little', m: 'Normal', l: 'A lot', xl: 'Very many' },
   xmas: 'Christmas effect (when you type "christmas")', xmasPreview: 'Preview Christmas effect',
+  specialKey: (k) => `Special effect key: ${k || 'None'}`, setKey: 'Set key… (next key you press)', pressKey: 'Press the key to use…', clearKey: 'Clear key',
   login: 'Launch at login', quit: 'Quit',
 };
 
@@ -78,6 +81,7 @@ function rebuildOverlays() {
 
 // ── 트레이 메뉴 ────────────────────────────────────────────────────────
 let tray = null;
+let capturingKey = false;   // 메뉴에서 "키 지정"을 누른 뒤 다음 키 하나를 특별 효과 키로 저장
 function pushSettings() { saveSettings(); broadcast({ type: 'options', options: settings }); buildMenu(); }
 
 function buildMenu() {
@@ -93,6 +97,10 @@ function buildMenu() {
     { type: 'separator' },
     { label: T.xmas, type: 'checkbox', checked: settings.xmas, click: (i) => { settings.xmas = i.checked; word.reset(); pushSettings(); } },
     { label: T.xmasPreview, click: () => broadcast({ type: 'xmas' }) },
+    { label: T.specialKey(settings.specialKeyLabel), submenu: [
+      { label: capturingKey ? T.pressKey : T.setKey, click: () => { capturingKey = true; buildMenu(); } },
+      { label: T.clearKey, enabled: settings.specialKey > 0, click: () => { capturingKey = false; settings.specialKey = 0; settings.specialKeyLabel = ''; pushSettings(); } },
+    ] },
     { type: 'separator' },
     { label: T.login, type: 'checkbox', checked: app.getLoginItemSettings().openAtLogin,
       click: (i) => app.setLoginItemSettings({ openAtLogin: i.checked }) },
@@ -104,8 +112,8 @@ function buildMenu() {
 // ── 전역 키 감지 ───────────────────────────────────────────────────────
 let word = null;
 function startHook() {
-  let uIOhook, keys;
-  try { ({ uIOhook } = require('uiohook-napi')); keys = require('./keys.js'); }
+  let uIOhook, keys, UiohookKey;
+  try { ({ uIOhook, UiohookKey } = require('uiohook-napi')); keys = require('./keys.js'); }
   catch (e) { console.error('Typefall: 키 감지를 시작할 수 없습니다:', e.message); return; }
   word = new core.WordTrigger(keys.patterns, keys.backspace);
 
@@ -115,9 +123,19 @@ function startHook() {
     const now = Date.now(), prev = down.get(e.keycode);
     down.set(e.keycode, now);
     if (prev !== undefined && now - prev < 800) return;
+    if (capturingKey) {                                               // 키 지정 모드: 이 키를 저장하고 끝 (효과는 내지 않음)
+      capturingKey = false;
+      if (!keys.ignore.has(e.keycode)) {
+        settings.specialKey = e.keycode;
+        settings.specialKeyLabel = Object.keys(UiohookKey).find((n) => UiohookKey[n] === e.keycode) || `#${e.keycode}`;
+        saveSettings();
+      }
+      buildMenu(); return;
+    }
     if (keys.ignore.has(e.keycode) || e.ctrlKey || e.metaKey) return;
     broadcast({ type: 'hit' });                                       // 입력 "신호"만 전달 (키 코드는 보내지 않음)
-    if (settings.xmas && word.feed(e.keycode)) broadcast({ type: 'xmas' });
+    const hitWord = settings.xmas && word.feed(e.keycode);
+    if (hitWord || (settings.specialKey > 0 && e.keycode === settings.specialKey)) broadcast({ type: 'xmas' });
   });
   uIOhook.on('keyup', (e) => down.delete(e.keycode));
   uIOhook.start();

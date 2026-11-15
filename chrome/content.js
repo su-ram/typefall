@@ -5,7 +5,7 @@
   const TF = self.Typefall;
   const isTop = window.top === window;
   const IGNORE = new Set(['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight', 'CapsLock', 'Tab', 'Escape']);
-  const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true };
+  const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, specialKey: '', specialKeyLabel: '' };
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let settings = { ...DEFAULTS };
 
@@ -52,10 +52,10 @@
     if (!e.isTrusted || e.repeat || e.ctrlKey || e.metaKey || IGNORE.has(e.code) || isPassword(e.target)) return;
     if (isTop) {
       onHit();
-      if (settings.xmas) { ensure(); if (tf.key(e.code)) { if (!reduceMotion) start(); } }
+      if (settings.xmas || settings.specialKey) { ensure(); if (tf.key(e.code)) { if (!reduceMotion) start(); } }
     } else {
       try { window.top.postMessage({ __typefall: 'hit' }, '*'); } catch (_) {}
-      if (settings.xmas && frameWord.feed(e.code)) { try { window.top.postMessage({ __typefall: 'xmas' }, '*'); } catch (_) {} }
+      if ((settings.xmas && frameWord.feed(e.code)) || (settings.specialKey && e.code === settings.specialKey)) { try { window.top.postMessage({ __typefall: 'xmas' }, '*'); } catch (_) {} }
     }
   }, true);
 
@@ -63,7 +63,7 @@
   addEventListener('message', (e) => {
     if (!e.data) return;
     if (e.data.__typefall === 'hit') onHit();
-    else if (e.data.__typefall === 'xmas' && settings.xmas && !reduceMotion) onXmas();
+    else if (e.data.__typefall === 'xmas' && (settings.xmas || settings.specialKey) && !reduceMotion) onXmas();
   });
 
   try {

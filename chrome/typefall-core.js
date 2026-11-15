@@ -1,6 +1,6 @@
 /*
  * Typefall core — 타자 칠 때 화면에 내리는 효과 엔진 (캔버스 2D, 의존성 없음)
- *   눈 / 별가루 / 크리스마스(빨강·초록 크로세트 폭죽 + 이모지)
+ *   눈 / 별가루(윤슬 반짝임) / 네잎클로버 / 낙엽 / 벚꽃 / 크리스마스(빨강·초록 크로세트 폭죽 + 이모지)
  * 브라우저(Chrome 확장·데모)에서는 전역 `Typefall`, Node에서는 module.exports.
  * 좌표는 CSS px, y는 아래로 증가. 맥 앱(Swift)의 로직과 같은 상수를 쓴다.
  * 프라이버시: 키 "내용"은 쓰지 않는다. WordTrigger는 물리 키 위치(event.code)의
@@ -129,24 +129,73 @@
         x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(e, 24, 26);
       }));
     }
+    // 윤슬: 별가루 위에서 순간적으로 번쩍이는 흰 십자 반짝임
+    spr.glint = mk(32, (x) => {
+      glow(x, 16, 16, [255, 255, 255], 8, 0.5);
+      poly(x, [[16, 0], [17.2, 14.8], [32, 16], [17.2, 17.2], [16, 32], [14.8, 17.2], [0, 16], [14.8, 14.8]], [255, 255, 255]);
+    });
+    // 자연물(색상 옵션과 무관, 고유 색): 네잎클로버 / 낙엽 / 벚꽃잎
+    const heart = (x, fill) => {
+      x.fillStyle = fill; x.beginPath(); x.moveTo(0, -2);
+      x.bezierCurveTo(-4, -5, -10, -7, -9, -14); x.bezierCurveTo(-8, -19, -2, -19, 0, -14);
+      x.bezierCurveTo(2, -19, 8, -19, 9, -14); x.bezierCurveTo(10, -7, 4, -5, 0, -2); x.closePath(); x.fill();
+      x.strokeStyle = 'rgba(255,255,255,0.35)'; x.lineWidth = 1; x.beginPath(); x.moveTo(0, -3); x.lineTo(0, -13); x.stroke();
+    };
+    spr.clovers = ['#34C759', '#2EA84F', '#4CD174'].map((c) => mk(40, (x) => {
+      x.translate(20, 20);
+      for (let k = 0; k < 4; k++) { x.save(); x.rotate(k * Math.PI / 2); heart(x, c); x.restore(); }
+      glow(x, 0, 0, [255, 255, 255], 4, 0.25);
+    }));
+    const maple = (c) => mk(40, (x) => {
+      x.translate(20, 20); x.fillStyle = c; x.strokeStyle = c; x.lineJoin = 'round'; x.lineWidth = 2.2;
+      x.beginPath();
+      for (let i = 0; i < 10; i++) { const r = i % 2 ? 8 : 16, a = -Math.PI / 2 + i * Math.PI / 5; x[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r + 1); }
+      x.closePath(); x.fill(); x.stroke();
+      x.strokeStyle = 'rgba(80,30,0,0.45)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, 19); x.lineTo(0, -10); x.stroke();
+    });
+    const oval = (c) => mk(40, (x) => {
+      x.translate(20, 20); x.fillStyle = c; x.beginPath(); x.moveTo(0, -17);
+      x.bezierCurveTo(13, -8, 13, 8, 0, 15); x.bezierCurveTo(-13, 8, -13, -8, 0, -17); x.closePath(); x.fill();
+      x.strokeStyle = 'rgba(80,30,0,0.45)'; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, 19); x.lineTo(0, -10); x.stroke();
+    });
+    spr.leaves = [maple('#E8501A'), maple('#F08A24'), maple('#D9342B'), maple('#F2B233'), oval('#C8741F'), oval('#E8A42A'), oval('#A8501A')];
+    spr.petals = [['#FF9DBB', '#FFE3EC'], ['#FFB3CB', '#FFF0F5'], ['#FFC2D6', '#FFFFFF']].map(([a, b]) => mk(24, (x) => {
+      x.translate(12, 12);
+      x.fillStyle = a; x.beginPath(); x.moveTo(0, 10);
+      x.bezierCurveTo(-9, 4, -8, -9, -2, -11); x.lineTo(0, -8); x.lineTo(2, -11); x.bezierCurveTo(8, -9, 9, 4, 0, 10); x.closePath(); x.fill();
+      glow(x, 0, -6, hexRgb(b), 9, 0.9);   // 끝쪽을 연하게
+    }));
     spr.emojiRepeatable = EMOJI_REPEATABLE; spr.emojiSnowflake = EMOJIS.indexOf('❄️');
     return spr;
   }
 
-  // ── 눈 / 별가루: 위에서 아래로만 떨어진다 ──────────────────────────────
+  // ── 눈 / 별가루 / 클로버 / 낙엽 / 벚꽃: 위에서 아래로만 떨어진다 ──────────
+  // max 동시 개수, size/vy/drift/spin 범위. flip = 뒤집히며 팔랑거림, rot = 처음 각도를 무작위로
+  const FALL = {
+    snow:   { max: 70, size: [6, 14],  vy: [55, 100], drift: [6, 20],  spin: [-1.5, 1.5] },
+    stars:  { max: 50, size: [9, 17],  vy: [45, 85],  drift: [6, 20],  spin: [-1.5, 1.5] },
+    clover: { max: 40, size: [16, 26], vy: [40, 80],  drift: [15, 30], spin: [-1, 1], rot: true },
+    leaves: { max: 40, size: [16, 28], vy: [50, 95],  drift: [30, 60], spin: [-2, 2], rot: true, flip: true },
+    sakura: { max: 70, size: [9, 16],  vy: [30, 60],  drift: [25, 50], spin: [-1.5, 1.5], rot: true, flip: true },
+  };
   class Falling {
-    constructor(stars) { this.stars = stars; this.flakes = []; this.dust = []; this.acc = 0; this.t = 0; }
+    constructor(kind) {
+      this.kind = kind === true ? 'stars' : kind === false || !kind ? 'snow' : kind;
+      this.stars = this.kind === 'stars'; this.cfg = FALL[this.kind];
+      this.flakes = []; this.dust = []; this.acc = 0; this.t = 0;
+    }
     get count() { return this.flakes.length + this.dust.length; }
     step(dt, rate, W, H, den, images, trail) {
       this.t += dt; this.acc += dt * rate;
-      const maxF = Math.round((this.stars ? 50 : 70) * den), maxD = Math.round(160 * den);
+      const c = this.cfg, maxF = Math.round(c.max * den), maxD = Math.round(160 * den);
       while (this.acc >= 1) {
         this.acc -= 1;
         if (this.flakes.length >= maxF) continue;
         this.flakes.push({
-          img: pick(images), size: this.stars ? rnd(9, 17) : rnd(6, 14),
-          x: rnd(0, W), y: -10, vy: this.stars ? rnd(45, 85) : rnd(55, 100),
-          phase: rnd(0, TAU), drift: rnd(6, 20), spin: rnd(-1.5, 1.5), alpha: rnd(0.55, 0.95),
+          img: pick(images), size: rnd(c.size[0], c.size[1]),
+          x: rnd(0, W), y: -10, vy: rnd(c.vy[0], c.vy[1]),
+          phase: rnd(0, TAU), drift: rnd(c.drift[0], c.drift[1]), spin: rnd(c.spin[0], c.spin[1]), alpha: rnd(0.55, 0.95),
+          rot0: c.rot ? rnd(0, TAU) : 0, tw: rnd(2, 5.5),
         });
       }
       const t = this.t;
@@ -160,14 +209,25 @@
       });
       this.dust = this.dust.filter((p) => { p.life -= dt; p.y += p.vy * dt; return p.life > 0; });
     }
-    draw(ctx) {
-      const t = this.t;
+    draw(ctx, glint) {
+      const t = this.t, c = this.cfg;
       for (const f of this.flakes) {
         ctx.save(); ctx.translate(f.x, f.y);
         if (this.stars) { ctx.rotate(t * f.spin + f.phase); ctx.globalAlpha = 0.55 + 0.4 * Math.sin(t * 4 + f.phase); }
-        else ctx.globalAlpha = f.alpha;
+        else {
+          ctx.globalAlpha = f.alpha;
+          if (c.rot) ctx.rotate(f.rot0 + t * f.spin * 0.5);
+          if (c.flip) ctx.scale(Math.max(0.2, Math.abs(Math.cos(t * 1.6 + f.phase))), 1);   // 뒤집히며 팔랑
+        }
         ctx.drawImage(f.img, -f.size / 2, -f.size / 2, f.size, f.size);
         ctx.restore();
+        if (this.stars && glint) { // 윤슬: 가끔 짧게 번쩍이는 흰 십자
+          const g = Math.pow(Math.max(0, Math.sin(t * f.tw + f.phase * 3)), 14);
+          if (g > 0.03) {
+            const s = f.size * (1.3 + 1.7 * g);
+            ctx.globalAlpha = g; ctx.drawImage(glint, f.x - s / 2, f.y - s / 2, s, s);
+          }
+        }
       }
       for (const p of this.dust) {
         ctx.globalAlpha = p.a * (p.life / p.max);
@@ -273,12 +333,13 @@
     constructor(o = {}) {
       this.createCanvas = o.createCanvas || ((w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; });
       this.W = o.W || 800; this.H = o.H || 600; this.dpr = o.dpr || 1;
-      this.opts = { mode: 'snow', tint: 'default', density: 'm', xmas: false };
+      this.opts = { mode: 'snow', tint: 'default', density: 'm', xmas: false, specialKey: '' }; // specialKey: 이 키를 누르면 크리스마스 효과(빈 값 = 사용 안 함)
       this.tracker = new TypingTracker(); this.word = new WordTrigger();
-      this.snow = new Falling(false); this.starsF = new Falling(true); this.xmas = new Christmas();
+      this.snow = new Falling('snow'); this.starsF = new Falling('stars'); this.xmas = new Christmas();
+      this.nature = { clover: new Falling('clover'), leaves: new Falling('leaves'), sakura: new Falling('sakura') };
       this.spr = buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint]);
     }
-    /** {mode:'off'|'snow'|'stars', tint, density, xmas} 일부만 넘겨도 됨 */
+    /** {mode, tint, density, xmas, specialKey} 일부만 넘겨도 됨 */
     setOptions(o) {
       const prevTint = this.opts.tint;
       Object.assign(this.opts, o);
@@ -290,8 +351,9 @@
       if (dpr && dpr !== this.dpr) { this.dpr = dpr; this.spr = buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint]); }
     }
     hit(now) { this.tracker.hit(now === undefined ? performance.now() : now); }
-    /** 키 하나(event.code). 크리스마스가 켜져 있을 때만 본다. 감지되면 true */
+    /** 키 하나(event.code). 지정 키는 항상, 크리스마스 단어는 켜져 있을 때만 본다. 감지되면 true */
     key(code) {
+      if (this.opts.specialKey && code === this.opts.specialKey) { this.xmas.trigger(this.spr); return true; }
       if (!this.opts.xmas) return false;
       if (this.word.feed(code)) { this.xmas.trigger(this.spr); return true; }
       return false;
@@ -299,7 +361,8 @@
     triggerChristmas() { this.xmas.trigger(this.spr); }
     /** 그릴 게 남아 있거나 타자 중이면 true (오버레이가 루프를 멈출지 판단) */
     get active() {
-      return this.tracker.smoothed > 0 || this.snow.count > 0 || this.starsF.count > 0 || this.xmas.active;
+      return this.tracker.smoothed > 0 || this.snow.count > 0 || this.starsF.count > 0 || this.xmas.active ||
+        Object.values(this.nature).some((f) => f.count > 0);
     }
     update(dt, now) {
       dt = Math.min(dt, 0.1);
@@ -308,12 +371,16 @@
       const den = DENSITY[normDensity(this.opts.density)] || 1, m = this.opts.mode;
       this.snow.step(dt, m === 'snow' && !idle ? lerp(1, 5, lv) * den : 0, this.W, this.H, den, this.spr.dots, []);
       this.starsF.step(dt, m === 'stars' && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, this.spr.stars, this.spr.specks);
+      const imgs = { clover: this.spr.clovers, leaves: this.spr.leaves, sakura: this.spr.petals };
+      for (const k in this.nature) this.nature[k].step(dt, m === k && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, imgs[k], []);
       this.xmas.update(dt, this.W, this.H, this.spr);
     }
     draw(ctx) {
       ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
       ctx.clearRect(0, 0, this.W, this.H);
-      this.snow.draw(ctx); this.starsF.draw(ctx); this.xmas.draw(ctx);
+      this.snow.draw(ctx); this.starsF.draw(ctx, this.spr.glint);
+      for (const k in this.nature) this.nature[k].draw(ctx);
+      this.xmas.draw(ctx);
     }
   }
 

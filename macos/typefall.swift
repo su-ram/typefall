@@ -37,44 +37,70 @@ func hex(_ v: UInt32) -> CGColor {
 }
 
 /// 눈/별가루: 위에서 생성되어 아래로만 떨어진다 (레이어 좌표는 y가 위로 증가 → 아래로 = y 감소)
+enum FallKind: String { case snow, stars, clover, leaves, sakura }
+
 final class SnowField {
-    final class Flake { let layer = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0 }
+    final class Flake { let layer = CALayer(); let glint = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0, rot0 = 0.0, tw = 0.0, d = 0.0 }
     final class Dust { let layer = CALayer(); var y = 0.0, vy = 0.0, life = 0.0, maxLife = 1.0, alpha = 1.0 }
     let root = CALayer()
     let size: CGSize
-    let stars: Bool          // true: 반짝이는 별가루(회전 + 깜빡임 + 꼬리 가루), false: 눈송이
+    let kind: FallKind       // stars: 반짝이는 별가루(회전 + 깜빡임 + 윤슬 + 꼬리 가루), snow: 눈송이, clover/leaves/sakura: 자연물
+    var stars: Bool { kind == .stars }
+    /// (최대 개수, 크기, 낙하 속도, 좌우 흔들림, 회전 속도) — shared/typefall-core.js 의 FALL 과 같은 값
+    var cfg: (max: Int, size: ClosedRange<Double>, vy: ClosedRange<Double>, drift: ClosedRange<Double>, spin: ClosedRange<Double>) {
+        switch kind {
+        case .snow: return (70, 6...14, 55...100, 6...20, -1.5...1.5)
+        case .stars: return (50, 9...17, 45...85, 6...20, -1.5...1.5)
+        case .clover: return (40, 16...26, 40...80, 15...30, -1...1)
+        case .leaves: return (40, 16...28, 50...95, 30...60, -2...2)
+        case .sakura: return (70, 9...16, 30...60, 25...50, -1.5...1.5)
+        }
+    }
+    var natural: Bool { kind == .clover || kind == .leaves || kind == .sakura }
+    var flips: Bool { kind == .leaves || kind == .sakura }   // 뒤집히며 팔랑거림
     var flakes: [Flake] = []
     var dust: [Dust] = []
     var acc = 0.0, t = 0.0
     var density = 1.0        // 파티클 양 배율 (적게/보통/많게)
-    var maxFlakes: Int { Int(Double(stars ? 50 : 70) * density) } // 개수 상한
+    var maxFlakes: Int { Int(Double(cfg.max) * density) } // 개수 상한
     var maxDust: Int { Int(160 * density) }
 
-    init(size: CGSize, stars: Bool) { self.size = size; self.stars = stars; root.frame = CGRect(origin: .zero, size: size) }
+    init(size: CGSize, kind: FallKind) { self.size = size; self.kind = kind; root.frame = CGRect(origin: .zero, size: size) }
 
-    func step(dt dtIn: Double, rate: Double, images: [CGImage], trail: [CGImage] = []) {
+    func step(dt dtIn: Double, rate: Double, images: [CGImage], trail: [CGImage] = [], glint: CGImage? = nil) {
         let dt = min(dtIn, 0.1); t += dt; acc += dt * rate
         CATransaction.begin(); CATransaction.setDisableActions(true)
         while acc >= 1 {
             acc -= 1
             if flakes.count >= maxFlakes { continue }
-            let f = Flake(); let d = stars ? Double.random(in: 9...17) : Double.random(in: 6...14)
+            let c = cfg; let f = Flake(); let d = Double.random(in: c.size); f.d = d
             f.layer.contents = images.randomElement()!
             f.layer.bounds = CGRect(x: 0, y: 0, width: d, height: d)
             f.layer.opacity = Float.random(in: 0.55...0.95)
             f.x = Double.random(in: 0...Double(size.width)); f.y = Double(size.height) + 10 // 화면 맨 위
-            f.vy = stars ? Double.random(in: 45...85) : Double.random(in: 55...100)
-            f.phase = Double.random(in: 0...6.28); f.drift = Double.random(in: 6...20)
-            f.spin = Double.random(in: -1.5...1.5)
+            f.vy = Double.random(in: c.vy)
+            f.phase = Double.random(in: 0...6.28); f.drift = Double.random(in: c.drift)
+            f.spin = Double.random(in: c.spin); f.tw = Double.random(in: 2...5.5)
+            if natural { f.rot0 = Double.random(in: 0...6.28) }
+            if stars, let g = glint { f.glint.contents = g; f.glint.opacity = 0; f.layer.addSublayer(f.glint) }
             root.addSublayer(f.layer); flakes.append(f)
         }
         flakes.removeAll { f in
             f.y -= f.vy * dt
             f.x += sin(t * 0.8 + f.phase) * f.drift * dt
             f.layer.position = CGPoint(x: f.x, y: f.y)
+            if natural { // 회전 (+ 뒤집히며 팔랑)
+                let rot = CATransform3DMakeRotation(CGFloat(f.rot0 + t * f.spin * 0.5), 0, 0, 1)
+                f.layer.transform = flips ? CATransform3DScale(rot, CGFloat(max(0.2, abs(cos(t * 1.6 + f.phase)))), 1, 1) : rot
+            }
             if stars { // 반짝임 + 회전
                 f.layer.opacity = Float(0.55 + 0.4 * sin(t * 4 + f.phase))
                 f.layer.transform = CATransform3DMakeRotation(CGFloat(t * f.spin + f.phase), 0, 0, 1)
+                // 윤슬: 가끔 짧게 번쩍이는 흰 십자
+                let g = pow(max(0, sin(t * f.tw + f.phase * 3)), 14), s = f.d * (1.3 + 1.7 * g)
+                f.glint.bounds = CGRect(x: 0, y: 0, width: s, height: s)
+                f.glint.position = CGPoint(x: f.d / 2, y: f.d / 2)
+                f.glint.opacity = Float(g)
                 // 꼬리: 별 뒤로 작은 가루를 흘린다
                 if !trail.isEmpty && dust.count < maxDust && Double.random(in: 0...1) < dt * 5 {
                     let p = Dust(); let d = Double.random(in: 3...7)
@@ -307,6 +333,9 @@ final class ScreenFX {
     let xmasSnowflake: Int
     let xmasDots: [CGImage]
     var snowOn = false, starsOn = false
+    var natKind: FallKind? = nil          // clover / leaves / sakura 중 하나 (켜져 있을 때)
+    var natFields: [SnowField] = []
+    let cloverImages: [CGImage], leafImages: [CGImage], petalImages: [CGImage], glintImage: CGImage
     var dots: [CGImage]
     var starImages: [CGImage]
     var speckImages: [CGImage]
@@ -315,6 +344,7 @@ final class ScreenFX {
     init() {
         dots = [ScreenFX.makeDot(0xBFE0FF)]
         (starImages, speckImages) = ScreenFX.makeStars(nil)
+        (cloverImages, leafImages, petalImages, glintImage) = ScreenFX.makeNature()
         // 앞의 3개(트리·산타·산타 부인)만 반복 가능, 나머지는 한 번에 하나씩 — xmasEmojiRepeatable 과 맞춰야 함
         // 🫎(무스)는 Unicode 15 이모지라 macOS 13.2 이하에서는 글자가 깨져 보일 수 있다
         let names = ["🎄", "🎅", "🤶", "🎁", "⛄", "🔔", "⭐", "🫎", "🍪", "❄️"]
@@ -361,6 +391,55 @@ final class ScreenFX {
         return (stars, specks)
     }
 
+    /// 자연물 이미지(색상 옵션과 무관, 고유 색): 네잎클로버 / 낙엽(단풍잎·둥근 잎) / 벚꽃잎, 그리고 윤슬용 흰 십자 반짝임
+    static func makeNature() -> (clovers: [CGImage], leaves: [CGImage], petals: [CGImage], glint: CGImage) {
+        func glow(_ c: CGContext, _ rgb: UInt32, _ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat, _ a: CGFloat) {
+            let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [hex(rgb).copy(alpha: a)!, hex(rgb).copy(alpha: 0)!] as CFArray, locations: [0, 1])!
+            c.drawRadialGradient(g, startCenter: CGPoint(x: cx, y: cy), startRadius: 0, endCenter: CGPoint(x: cx, y: cy), endRadius: r, options: [])
+        }
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x, y: y) }
+        func heart(_ c: CGContext, _ rgb: UInt32) {
+            c.setFillColor(hex(rgb)); c.beginPath(); c.move(to: pt(0, -2))
+            c.addCurve(to: pt(-9, -14), control1: pt(-4, -5), control2: pt(-10, -7)); c.addCurve(to: pt(0, -14), control1: pt(-8, -19), control2: pt(-2, -19))
+            c.addCurve(to: pt(9, -14), control1: pt(2, -19), control2: pt(8, -19)); c.addCurve(to: pt(0, -2), control1: pt(10, -7), control2: pt(4, -5))
+            c.closePath(); c.fillPath()
+            c.setStrokeColor(CGColor(gray: 1, alpha: 0.35)); c.setLineWidth(1); c.move(to: pt(0, -3)); c.addLine(to: pt(0, -13)); c.strokePath()
+        }
+        func vein(_ c: CGContext) { c.setStrokeColor(CGColor(srgbRed: 0.31, green: 0.12, blue: 0, alpha: 0.45)); c.setLineWidth(1.2); c.beginPath(); c.move(to: pt(0, 19)); c.addLine(to: pt(0, -10)); c.strokePath() }
+        let clovers = [0x34C759, 0x2EA84F, 0x4CD174].map { rgb in makeImage(40) { c in
+            c.translateBy(x: 20, y: 20)
+            for k in 0..<4 { c.saveGState(); c.rotate(by: CGFloat(k) * .pi / 2); heart(c, UInt32(rgb)); c.restoreGState() }
+            glow(c, 0xFFFFFF, 0, 0, 4, 0.25)
+        } }
+        func maple(_ rgb: UInt32) -> CGImage { makeImage(40) { c in
+            c.translateBy(x: 20, y: 20); c.setFillColor(hex(rgb)); c.setStrokeColor(hex(rgb)); c.setLineJoin(.round); c.setLineWidth(2.2)
+            c.beginPath()
+            for i in 0..<10 {
+                let r: CGFloat = i % 2 == 0 ? 8 : 16, a = -CGFloat.pi / 2 + CGFloat(i) * .pi / 5
+                let p = pt(cos(a) * r, sin(a) * r + 1); if i == 0 { c.move(to: p) } else { c.addLine(to: p) }
+            }
+            c.closePath(); c.drawPath(using: .fillStroke); vein(c)
+        } }
+        func oval(_ rgb: UInt32) -> CGImage { makeImage(40) { c in
+            c.translateBy(x: 20, y: 20); c.setFillColor(hex(rgb)); c.beginPath(); c.move(to: pt(0, -17))
+            c.addCurve(to: pt(0, 15), control1: pt(13, -8), control2: pt(13, 8)); c.addCurve(to: pt(0, -17), control1: pt(-13, 8), control2: pt(-13, -8))
+            c.closePath(); c.fillPath(); vein(c)
+        } }
+        let leaves = [maple(0xE8501A), maple(0xF08A24), maple(0xD9342B), maple(0xF2B233), oval(0xC8741F), oval(0xE8A42A), oval(0xA8501A)]
+        let petals = [(0xFF9DBB, 0xFFE3EC), (0xFFB3CB, 0xFFF0F5), (0xFFC2D6, 0xFFFFFF)].map { (a, b) in makeImage(24) { c in
+            c.translateBy(x: 12, y: 12); c.setFillColor(hex(UInt32(a))); c.beginPath(); c.move(to: pt(0, 10))
+            c.addCurve(to: pt(-2, -11), control1: pt(-9, 4), control2: pt(-8, -9)); c.addLine(to: pt(0, -8)); c.addLine(to: pt(2, -11))
+            c.addCurve(to: pt(0, 10), control1: pt(8, -9), control2: pt(9, 4)); c.closePath(); c.fillPath()
+            glow(c, UInt32(b), 0, -6, 9, 0.9)
+        } }
+        let glint = makeImage(32) { c in
+            glow(c, 0xFFFFFF, 16, 16, 8, 0.5); c.setFillColor(hex(0xFFFFFF)); c.beginPath()
+            let pts = [pt(16, 32), pt(17.2, 17.2), pt(32, 16), pt(17.2, 14.8), pt(16, 0), pt(14.8, 14.8), pt(0, 16), pt(14.8, 17.2)]
+            c.move(to: pts[0]); for q in pts.dropFirst() { c.addLine(to: q) }; c.closePath(); c.fillPath()
+        }
+        return (clovers, leaves, petals, glint)
+    }
+
     static func makeEmoji(_ e: String) -> CGImage {
         makeImage(48) { c in
             NSGraphicsContext.saveGraphicsState()
@@ -389,8 +468,8 @@ final class ScreenFX {
     static var headless = false   // --menu-test: 화면 창을 만들지 않는다
     func rebuild() {
         windows.forEach { $0.orderOut(nil) }
-        windows = []; snowFields = []; starFields = []; xmasFX = []
-        guard snowOn || starsOn || xmasOn, !ScreenFX.headless else { return }
+        windows = []; snowFields = []; starFields = []; natFields = []; xmasFX = []
+        guard snowOn || starsOn || natKind != nil || xmasOn, !ScreenFX.headless else { return }
         for sc in NSScreen.screens {
             let w = NSWindow(contentRect: sc.frame, styleMask: .borderless, backing: .buffered, defer: false)
             w.isOpaque = false; w.backgroundColor = .clear; w.hasShadow = false
@@ -401,12 +480,16 @@ final class ScreenFX {
             let v = NSView(frame: NSRect(origin: .zero, size: sc.frame.size)); v.wantsLayer = true
             w.contentView = v
             if snowOn {
-                let f = SnowField(size: sc.frame.size, stars: false)
+                let f = SnowField(size: sc.frame.size, kind: .snow)
                 v.layer!.addSublayer(f.root); snowFields.append(f)
             }
             if starsOn {
-                let f = SnowField(size: sc.frame.size, stars: true)
+                let f = SnowField(size: sc.frame.size, kind: .stars)
                 v.layer!.addSublayer(f.root); starFields.append(f)
+            }
+            if let k = natKind {
+                let f = SnowField(size: sc.frame.size, kind: k)
+                v.layer!.addSublayer(f.root); natFields.append(f)
             }
             if xmasOn {
                 let x = ChristmasFX(size: sc.frame.size, emojis: xmasEmojis, repeatable: xmasEmojiRepeatable, snowflake: xmasSnowflake, dots: xmasDots)
@@ -423,7 +506,12 @@ final class ScreenFX {
     func update(level: Double, idle: Bool, dt: Double) {
         for f in snowFields { f.density = density; f.step(dt: dt, rate: idle ? 0 : lerp(1, 5, level) * density, images: dots) } // 초당 1~5개 생성
         for x in xmasFX { x.update(dt: dt) }
-        for f in starFields { f.density = density; f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: starImages, trail: speckImages) }
+        for f in starFields { f.density = density; f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: starImages, trail: speckImages, glint: glintImage) }
+        for f in natFields {
+            f.density = density
+            let imgs = f.kind == .clover ? cloverImages : (f.kind == .leaves ? leafImages : petalImages)
+            f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: imgs)
+        }
     }
 }
 
@@ -447,6 +535,9 @@ final class App: NSObject, NSApplicationDelegate {
     let defaults: UserDefaults = CommandLine.arguments.contains("--menu-test") ? UserDefaults(suiteName: "dev.typefall.menutest")! : UserDefaults.standard
     var permItem = NSMenuItem(title: "", action: #selector(openPrivacy), keyEquivalent: "")   // 메뉴를 다시 만들 때마다 새 항목으로 교체
     var xmasOn: Bool { defaults.object(forKey: "xmas") as? Bool ?? true }
+    /// 사용자가 지정한 특별 효과 키(물리 키코드). 기본 = 없음
+    var specialKey: Int64? { (defaults.object(forKey: "fxSpecialKey") as? Int).map { Int64($0) } }
+    var capturingKey = false   // "키 지정"을 누른 뒤 다음 키 하나를 저장
     var tap: CFMachPort?
     var keyCount = 0
     var wasTrusted = false
@@ -511,9 +602,10 @@ final class App: NSObject, NSApplicationDelegate {
             defaults.set(true, forKey: "loginInit")
             try? SMAppService.mainApp.register()
         }
-        if CommandLine.arguments.contains("--fx-preview") || CommandLine.arguments.contains("--fx-preview-stars") {
-            let stars = CommandLine.arguments.contains("--fx-preview-stars")
-            fx.snowOn = !stars; fx.starsOn = stars; fx.rebuild()
+        let previewMode = CommandLine.arguments.first(where: { $0.hasPrefix("--fx-preview") }).map { String($0.dropFirst("--fx-preview".count)).trimmingCharacters(in: CharacterSet(charactersIn: "-")) }
+        if let pm = previewMode {   // --fx-preview[-stars|-clover|-leaves|-sakura]: 타자 없이 효과 시연
+            fx.snowOn = pm.isEmpty || pm == "snow"; fx.starsOn = pm == "stars"; fx.natKind = FallKind(rawValue: pm).flatMap { [.clover, .leaves, .sakura].contains($0) ? $0 : nil }
+            fx.rebuild()
             fx.previewUntil = ProcessInfo.processInfo.systemUptime + 8
         }
         if CommandLine.arguments.contains("--xmas-preview") {
@@ -558,7 +650,16 @@ final class App: NSObject, NSApplicationDelegate {
         keyCount += 1
         if e.getIntegerValueField(.keyboardEventAutorepeat) != 0 { return }
         if e.flags.contains(.maskCommand) || e.flags.contains(.maskControl) { return }
+        let code = e.getIntegerValueField(.keyboardEventKeycode)
+        if capturingKey {   // 키 지정 모드: 이 키를 저장하고 끝 (효과는 내지 않음). 표시용 글자만 함께 저장
+            capturingKey = false
+            let label = NSEvent(cgEvent: e)?.charactersIgnoringModifiers?.uppercased().trimmingCharacters(in: .whitespaces) ?? ""
+            defaults.set(Int(code), forKey: "fxSpecialKey"); defaults.set(label.isEmpty ? "#\(code)" : label, forKey: "fxSpecialKeyLabel")
+            DispatchQueue.main.async { [weak self] in self?.applyFx(); self?.buildMenu() }
+            return
+        }
         tracker.hit(ProcessInfo.processInfo.systemUptime)
+        if let sk = specialKey, code == sk { fx.triggerChristmas() }
         // 크리스마스 단어 감지: 켜져 있을 때만, 키 위치의 진행 상태만 본다 (내용은 저장하지 않음)
         if xmasOn, word.feed(e.getIntegerValueField(.keyboardEventKeycode)) { fx.triggerChristmas() }
     }
@@ -587,9 +688,10 @@ final class App: NSObject, NSApplicationDelegate {
     }
     func applyFx() {
         let m = fxMode
-        let wantSnow = m == "snow", wantStars = m == "stars", wantXmas = xmasOn
-        let structureChanged = fx.snowOn != wantSnow || fx.starsOn != wantStars || fx.xmasOn != wantXmas
-        fx.snowOn = wantSnow; fx.starsOn = wantStars; fx.xmasOn = wantXmas
+        let wantSnow = m == "snow", wantStars = m == "stars", wantXmas = xmasOn || specialKey != nil   // 특별 효과 키가 있으면 폭죽 레이어가 필요
+        let wantNat: FallKind? = ["clover", "leaves", "sakura"].contains(m) ? FallKind(rawValue: m) : nil
+        let structureChanged = fx.snowOn != wantSnow || fx.starsOn != wantStars || fx.xmasOn != wantXmas || fx.natKind != wantNat
+        fx.snowOn = wantSnow; fx.starsOn = wantStars; fx.xmasOn = wantXmas; fx.natKind = wantNat
         if !xmasOn { word.reset() }
         let name = defaults.string(forKey: "fxTint") ?? "기본"
         fx.tint = fxTints.first(where: { $0.0 == name })?.1
@@ -599,7 +701,7 @@ final class App: NSObject, NSApplicationDelegate {
         updateIcon()
     }
     func updateIcon() {
-        let sym = ["snow": "snowflake", "stars": "sparkles"][fxMode] ?? "moon.zzz"
+        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro"][fxMode] ?? "moon.zzz"
         // 메뉴바 높이(약 24pt) 안에서 낼 수 있는 가장 큰 크기로 그린다
         let cfg = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
         let img = NSImage(systemSymbolName: sym, accessibilityDescription: "Typefall")?.withSymbolConfiguration(cfg)
@@ -616,7 +718,7 @@ final class App: NSObject, NSApplicationDelegate {
         m.addItem(.separator())
         let fxMenu = NSMenu()
         let curFx = fxMode
-        for (key, title) in [("off", "끄기"), ("snow", "눈"), ("stars", "별가루")] { // 하나만 선택 가능
+        for (key, title) in [("off", "끄기"), ("snow", "눈"), ("stars", "별가루"), ("clover", "네잎클로버"), ("leaves", "낙엽"), ("sakura", "벚꽃")] { // 하나만 선택 가능
             let i = NSMenuItem(title: title, action: #selector(pickFxMode(_:)), keyEquivalent: "")
             i.target = self; i.representedObject = key; i.state = key == curFx ? .on : .off
             fxMenu.addItem(i)
@@ -640,6 +742,14 @@ final class App: NSObject, NSApplicationDelegate {
         let xp = NSMenuItem(title: "크리스마스 효과 미리보기", action: #selector(previewXmas), keyEquivalent: "")
         xp.target = self
         m.addItem(xp)
+        let keyMenu = NSMenu()
+        let setKey = NSMenuItem(title: capturingKey ? "지정할 키를 누르세요…" : "키 지정… (다음에 누르는 키)", action: #selector(startCaptureKey), keyEquivalent: "")
+        setKey.target = self; keyMenu.addItem(setKey)
+        let clearKey = NSMenuItem(title: "지정 해제", action: specialKey == nil ? nil : #selector(clearSpecialKey), keyEquivalent: "")
+        clearKey.target = self; keyMenu.addItem(clearKey)
+        let keyItem = NSMenuItem(title: "특별 효과 키: \(specialKey == nil ? "없음" : (defaults.string(forKey: "fxSpecialKeyLabel") ?? "?"))", action: nil, keyEquivalent: "")
+        keyItem.submenu = keyMenu
+        m.addItem(keyItem)
         m.addItem(.separator())
         let denMenu = NSMenu()
         let curDen = densityName
@@ -680,6 +790,12 @@ final class App: NSObject, NSApplicationDelegate {
     }
     @objc func toggleXmas(_ s: NSMenuItem) {
         defaults.set(!xmasOn, forKey: "xmas")
+        applyFx(); buildMenu()
+    }
+    @objc func startCaptureKey() { capturingKey = true; buildMenu() }
+    @objc func clearSpecialKey() {
+        capturingKey = false
+        defaults.removeObject(forKey: "fxSpecialKey"); defaults.removeObject(forKey: "fxSpecialKeyLabel")
         applyFx(); buildMenu()
     }
     @objc func previewXmas() {

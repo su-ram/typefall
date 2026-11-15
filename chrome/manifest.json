@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Typefall",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Snow, stardust and Christmas fireworks that fall across the page while you type.",
   "permissions": ["storage", "activeTab"],
   "action": { "default_popup": "popup.html", "default_title": "Typefall" },
