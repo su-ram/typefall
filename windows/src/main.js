@@ -21,7 +21,7 @@ const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function loadSettings() {
   try {
     const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
-    if (['off', 'snow', 'stars', 'clover', 'leaves', 'sakura'].includes(s.mode)) settings.mode = s.mode;
+    if (['off', 'snow', 'stars', ...core.NATURE_KINDS].includes(s.mode)) settings.mode = s.mode;
     if (s.tint in core.TINTS) settings.tint = s.tint;
     settings.density = core.normDensity(s.density);   // 예전 값(low/midlow/…)은 같은 양의 새 값으로 변환
     if (typeof s.xmas === 'boolean') settings.xmas = s.xmas;
@@ -36,14 +36,14 @@ function saveSettings() {
 // ── 문구(한국어/영어) ──────────────────────────────────────────────────
 const KO = (app.getLocale() || 'en').toLowerCase().startsWith('ko');
 const T = KO ? {
-  effect: '화면 효과', modes: { off: '끄기', snow: '눈', stars: '별가루', clover: '네잎클로버', leaves: '낙엽', sakura: '벚꽃' },
+  effect: '화면 효과', modes: { off: '끄기', snow: '눈', stars: '별가루', clover: '네잎클로버', leaves: '낙엽', sakura: '벚꽃', bubble: '비눗방울', paws: '고양이 발자국' },
   tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이', rainbow: '레인보우' },
   density: '파티클 양', densities: { xs: '아주 조금', s: '조금', m: '보통', l: '많이', xl: '아주 많이' },
   xmas: '크리스마스 효과 ("크리스마스" 입력 시)', xmasPreview: '크리스마스 효과 미리보기',
   specialKey: (k) => `특별 효과 키: ${k || '없음'}`, setKey: '키 지정… (다음에 누르는 키)', pressKey: '지정할 키를 누르세요…', clearKey: '지정 해제',
   login: '로그인 시 자동 실행', quit: '종료',
 } : {
-  effect: 'Effect', modes: { off: 'Off', snow: 'Snow', stars: 'Stardust', clover: 'Four-leaf clover', leaves: 'Autumn leaves', sakura: 'Cherry blossoms' },
+  effect: 'Effect', modes: { off: 'Off', snow: 'Snow', stars: 'Stardust', clover: 'Four-leaf clover', leaves: 'Autumn leaves', sakura: 'Cherry blossoms', bubble: 'Bubbles', paws: 'Cat paws' },
   tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', yellow: 'Yellow', sky: 'Sky', rainbow: 'Rainbow' },
   density: 'Particle amount', densities: { xs: 'Very little', s: 'A little', m: 'Normal', l: 'A lot', xl: 'Very many' },
   xmas: 'Christmas effect (when you type "christmas")', xmasPreview: 'Preview Christmas effect',

@@ -37,27 +37,34 @@ func hex(_ v: UInt32) -> CGColor {
 }
 
 /// 눈/별가루: 위에서 생성되어 아래로만 떨어진다 (레이어 좌표는 y가 위로 증가 → 아래로 = y 감소)
-enum FallKind: String { case snow, stars, clover, leaves, sakura }
+enum FallKind: String, CaseIterable { case snow, stars, clover, leaves, sakura, bubble, paws }
 
 final class SnowField {
-    final class Flake { let layer = CALayer(); let glint = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0, rot0 = 0.0, tw = 0.0, d = 0.0 }
+    final class Flake { let layer = CALayer(); let glint = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0, rot0 = 0.0, tw = 0.0, d = 0.0, age = 0.0, ttl = 0.0, alpha = 1.0 }
     final class Dust { let layer = CALayer(); var y = 0.0, vy = 0.0, life = 0.0, maxLife = 1.0, alpha = 1.0 }
     let root = CALayer()
     let size: CGSize
     let kind: FallKind       // stars: 반짝이는 별가루(회전 + 깜빡임 + 윤슬 + 꼬리 가루), snow: 눈송이, clover/leaves/sakura: 자연물
     var stars: Bool { kind == .stars }
-    /// (최대 개수, 크기, 낙하 속도, 좌우 흔들림, 회전 속도) — shared/typefall-core.js 의 FALL 과 같은 값
-    var cfg: (max: Int, size: ClosedRange<Double>, vy: ClosedRange<Double>, drift: ClosedRange<Double>, spin: ClosedRange<Double>) {
+    /// 종류별 설정 — shared/typefall-core.js 의 FALL 과 같은 값.
+    /// ttl = 수명(초), fade = 나타나고 사라지는 시간, pop = 사라질 때 커지며 터짐
+    struct Cfg {
+        var max: Int, size: ClosedRange<Double>, vy: ClosedRange<Double>, drift: ClosedRange<Double>, spin: ClosedRange<Double>
+        var alpha: ClosedRange<Double> = 0.55...0.95
+        var rot = false, flip = false, ttl: ClosedRange<Double>? = nil, fade = 0.0, pop = false
+    }
+    var cfg: Cfg {
         switch kind {
-        case .snow: return (70, 6...14, 55...100, 6...20, -1.5...1.5)
-        case .stars: return (50, 9...17, 45...85, 6...20, -1.5...1.5)
-        case .clover: return (40, 16...26, 40...80, 15...30, -1...1)
-        case .leaves: return (40, 16...28, 50...95, 30...60, -2...2)
-        case .sakura: return (70, 9...16, 30...60, 25...50, -1.5...1.5)
+        case .snow: return Cfg(max: 70, size: 6...14, vy: 55...100, drift: 6...20, spin: -1.5...1.5)
+        case .stars: return Cfg(max: 50, size: 9...17, vy: 45...85, drift: 6...20, spin: -1.5...1.5)
+        case .clover: return Cfg(max: 40, size: 11...18, vy: 40...80, drift: 15...30, spin: -1...1, rot: true)
+        case .leaves: return Cfg(max: 40, size: 16...28, vy: 50...95, drift: 30...60, spin: -2...2, rot: true, flip: true)
+        case .sakura: return Cfg(max: 70, size: 9...16, vy: 30...60, drift: 25...50, spin: -1.5...1.5, rot: true, flip: true)
+        case .bubble: return Cfg(max: 30, size: 14...30, vy: 25...55, drift: 20...40, spin: 0...0, alpha: 0.6...0.95, ttl: 2.5...7, fade: 0.25, pop: true)
+        case .paws: return Cfg(max: 40, size: 14...24, vy: 40...80, drift: 8...20, spin: -0.3...0.3, alpha: 0.6...0.9, rot: true)
         }
     }
-    var natural: Bool { kind == .clover || kind == .leaves || kind == .sakura }
-    var flips: Bool { kind == .leaves || kind == .sakura }   // 뒤집히며 팔랑거림
+    var natural: Bool { kind != .snow && kind != .stars }
     var flakes: [Flake] = []
     var dust: [Dust] = []
     var acc = 0.0, t = 0.0
@@ -76,22 +83,34 @@ final class SnowField {
             let c = cfg; let f = Flake(); let d = Double.random(in: c.size); f.d = d
             f.layer.contents = images.randomElement()!
             f.layer.bounds = CGRect(x: 0, y: 0, width: d, height: d)
-            f.layer.opacity = Float.random(in: 0.55...0.95)
-            f.x = Double.random(in: 0...Double(size.width)); f.y = Double(size.height) + 10 // 화면 맨 위
+            f.alpha = Double.random(in: c.alpha); f.layer.opacity = Float(f.alpha)
+            f.x = Double.random(in: 0...Double(size.width))
+            f.y = Double(size.height) + 10 // 화면 맨 위
+            if let r = c.ttl { f.ttl = Double.random(in: r) }
             f.vy = Double.random(in: c.vy)
             f.phase = Double.random(in: 0...6.28); f.drift = Double.random(in: c.drift)
             f.spin = Double.random(in: c.spin); f.tw = Double.random(in: 2...5.5)
-            if natural { f.rot0 = Double.random(in: 0...6.28) }
+            if c.rot { f.rot0 = Double.random(in: 0...6.28) }
             if stars, let g = glint { f.glint.contents = g; f.glint.opacity = 0; f.layer.addSublayer(f.glint) }
             root.addSublayer(f.layer); flakes.append(f)
         }
         flakes.removeAll { f in
             f.y -= f.vy * dt
             f.x += sin(t * 0.8 + f.phase) * f.drift * dt
+            let c = cfg
+            f.age += dt
+            if f.ttl > 0 && f.age > f.ttl { f.layer.removeFromSuperlayer(); return true }
             f.layer.position = CGPoint(x: f.x, y: f.y)
-            if natural { // 회전 (+ 뒤집히며 팔랑)
-                let rot = CATransform3DMakeRotation(CGFloat(f.rot0 + t * f.spin * 0.5), 0, 0, 1)
-                f.layer.transform = flips ? CATransform3DScale(rot, CGFloat(max(0.2, abs(cos(t * 1.6 + f.phase)))), 1, 1) : rot
+            if natural { // 회전 (+ 뒤집히며 팔랑), 수명이 있으면 나타나고 사라지기 (방울은 터지듯 커짐)
+                var a = f.alpha, sc = 1.0
+                if f.ttl > 0 {
+                    let inK = min(1, max(0, f.age / c.fade)), outK = min(1, max(0, (f.ttl - f.age) / c.fade))
+                    a *= inK * outK; if c.pop { sc = 1 + 0.5 * (1 - outK) }
+                }
+                f.layer.opacity = Float(a)
+                var tr = c.rot ? CATransform3DMakeRotation(CGFloat(f.rot0 + t * f.spin * 0.5), 0, 0, 1) : CATransform3DIdentity
+                if c.flip { tr = CATransform3DScale(tr, CGFloat(max(0.2, abs(cos(t * 1.6 + f.phase)))), 1, 1) }
+                f.layer.transform = sc == 1 ? tr : CATransform3DScale(tr, CGFloat(sc), CGFloat(sc), 1)
             }
             if stars { // 반짝임 + 회전
                 f.layer.opacity = Float(0.55 + 0.4 * sin(t * 4 + f.phase))
@@ -181,7 +200,7 @@ final class ChristmasFX {
     var parts: [P] = []
     var emojiQueue: [Int] = []          // 앞으로 떨어뜨릴 이모지(인덱스)
     var burstsLeft = 0
-    let repeatable: Int                 // 앞의 N개(트리·산타·산타 부인)만 여러 번 나올 수 있음
+    let repeatable: Int                 // 앞의 N개(트리)만 여러 번 나올 수 있음
     let snowflake: Int                  // ❄️ 의 인덱스(매번 포함)
     var emojiAcc = 0.0, burstAcc = 0.0, t = 0.0
 
@@ -190,8 +209,8 @@ final class ChristmasFX {
         root.frame = CGRect(origin: .zero, size: size)
     }
 
-    /// 이모지 12개를 예약한다: 트리 3~4개(화면 전체 최대 4개, 가장 많음) + 산타 계열 2개 + 나머지는 하나씩(❄️ 는 항상 포함).
-    /// 반복 가능 그룹(트리·산타) 밖의 이모지는 화면·대기열에 이미 있으면 다시 뽑지 않는다.
+    /// 이모지 12개를 예약한다: 트리 3~4개(화면 전체 최대 4개, 가장 많음) + 나머지는 하나씩(❄️ 는 항상 포함).
+    /// 반복 가능 그룹(트리) 밖의 이모지는 화면·대기열에 이미 있으면 다시 뽑지 않는다.
     func trigger() {
         burstsLeft += 9
         let total = 12, maxTrees = 4
@@ -199,13 +218,11 @@ final class ChristmasFX {
         var treeNow = emojiQueue.filter { $0 == 0 }.count
         for p in parts where p.emoji { busy.insert(p.emojiIdx); if p.emojiIdx == 0 { treeNow += 1 } }
         let trees = min(Int.random(in: 3...4), max(0, maxTrees - treeNow))
-        let santas = (0..<2).map { _ in Int.random(in: 1..<repeatable) }                       // 산타 / 산타 부인
-        let slots = total - trees - santas.count
+        let slots = total - trees
         var others = Array(repeatable..<emojis.count).filter { !busy.contains($0) }.shuffled()
         if let i = others.firstIndex(of: snowflake), i > 0 { others.remove(at: i); others.insert(snowflake, at: 0) }   // ❄️ 먼저
         let picked = Array(others.prefix(slots))
-        let fill = (0..<(slots - picked.count)).map { _ in Int.random(in: 1..<repeatable) }
-        emojiQueue += (Array(repeating: 0, count: trees) + santas + picked + fill).shuffled()
+        emojiQueue += (Array(repeating: 0, count: trees) + picked).shuffled()
     }
 
     func spawnEmoji(_ idx: Int) {
@@ -329,13 +346,13 @@ final class ScreenFX {
     var xmasOn = false
     var xmasFX: [ChristmasFX] = []
     let xmasEmojis: [CGImage]
-    let xmasEmojiRepeatable = 3
+    let xmasEmojiRepeatable = 1
     let xmasSnowflake: Int
     let xmasDots: [CGImage]
     var snowOn = false, starsOn = false
     var natKind: FallKind? = nil          // clover / leaves / sakura 중 하나 (켜져 있을 때)
     var natFields: [SnowField] = []
-    let cloverImages: [CGImage], leafImages: [CGImage], petalImages: [CGImage], glintImage: CGImage
+    let natImages: [FallKind: [CGImage]], glintImage: CGImage
     var dots: [CGImage]
     var starImages: [CGImage]
     var speckImages: [CGImage]
@@ -344,8 +361,8 @@ final class ScreenFX {
     init() {
         dots = [ScreenFX.makeDot(0xBFE0FF)]
         (starImages, speckImages) = ScreenFX.makeStars(nil)
-        (cloverImages, leafImages, petalImages, glintImage) = ScreenFX.makeNature()
-        // 앞의 3개(트리·산타·산타 부인)만 반복 가능, 나머지는 한 번에 하나씩 — xmasEmojiRepeatable 과 맞춰야 함
+        (natImages, glintImage) = ScreenFX.makeNature()
+        // 앞의 1개(트리)만 반복 가능, 나머지는 한 번에 하나씩 — xmasEmojiRepeatable 과 맞춰야 함
         // 🫎(무스)는 Unicode 15 이모지라 macOS 13.2 이하에서는 글자가 깨져 보일 수 있다
         let names = ["🎄", "🎅", "🤶", "🎁", "⛄", "🔔", "⭐", "🫎", "🍪", "❄️"]
         xmasEmojis = names.map { ScreenFX.makeEmoji($0) }
@@ -392,7 +409,7 @@ final class ScreenFX {
     }
 
     /// 자연물 이미지(색상 옵션과 무관, 고유 색): 네잎클로버 / 낙엽(단풍잎·둥근 잎) / 벚꽃잎, 그리고 윤슬용 흰 십자 반짝임
-    static func makeNature() -> (clovers: [CGImage], leaves: [CGImage], petals: [CGImage], glint: CGImage) {
+    static func makeNature() -> (images: [FallKind: [CGImage]], glint: CGImage) {
         func glow(_ c: CGContext, _ rgb: UInt32, _ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat, _ a: CGFloat) {
             let g = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: [hex(rgb).copy(alpha: a)!, hex(rgb).copy(alpha: 0)!] as CFArray, locations: [0, 1])!
             c.drawRadialGradient(g, startCenter: CGPoint(x: cx, y: cy), startRadius: 0, endCenter: CGPoint(x: cx, y: cy), endRadius: r, options: [])
@@ -406,7 +423,7 @@ final class ScreenFX {
             c.setStrokeColor(CGColor(gray: 1, alpha: 0.35)); c.setLineWidth(1); c.move(to: pt(0, -3)); c.addLine(to: pt(0, -13)); c.strokePath()
         }
         func vein(_ c: CGContext) { c.setStrokeColor(CGColor(srgbRed: 0.31, green: 0.12, blue: 0, alpha: 0.45)); c.setLineWidth(1.2); c.beginPath(); c.move(to: pt(0, 19)); c.addLine(to: pt(0, -10)); c.strokePath() }
-        let clovers = [0x34C759, 0x2EA84F, 0x4CD174].map { rgb in makeImage(40) { c in
+        let clovers = [0x34C759, 0x2EA84F, 0x4CD174, 0x8BDB5A, 0x1F8A4C].map { rgb in makeImage(40) { c in
             c.translateBy(x: 20, y: 20)
             for k in 0..<4 { c.saveGState(); c.rotate(by: CGFloat(k) * .pi / 2); heart(c, UInt32(rgb)); c.restoreGState() }
             glow(c, 0xFFFFFF, 0, 0, 4, 0.25)
@@ -437,7 +454,19 @@ final class ScreenFX {
             let pts = [pt(16, 32), pt(17.2, 17.2), pt(32, 16), pt(17.2, 14.8), pt(16, 0), pt(14.8, 14.8), pt(0, 16), pt(14.8, 17.2)]
             c.move(to: pts[0]); for q in pts.dropFirst() { c.addLine(to: q) }; c.closePath(); c.fillPath()
         }
-        return (clovers, leaves, petals, glint)
+        let bubbles = [makeImage(32) { c in
+            c.translateBy(x: 16, y: 16); glow(c, 0xBEE6FF, 0, 0, 14, 0.22); c.setLineWidth(1.6)
+            c.setStrokeColor(CGColor(srgbRed: 0.67, green: 0.86, blue: 1, alpha: 0.85)); c.strokeEllipse(in: CGRect(x: -13, y: -13, width: 26, height: 26))
+            c.setStrokeColor(CGColor(srgbRed: 1, green: 0.67, blue: 0.86, alpha: 0.9)); c.beginPath(); c.addArc(center: .zero, radius: 13, startAngle: 0.2, endAngle: 1.4, clockwise: false); c.strokePath()
+            c.setStrokeColor(CGColor(srgbRed: 0.78, green: 1, blue: 0.67, alpha: 0.9)); c.beginPath(); c.addArc(center: .zero, radius: 13, startAngle: .pi + 0.2, endAngle: .pi + 1.4, clockwise: false); c.strokePath()
+            c.setFillColor(CGColor(gray: 1, alpha: 0.9)); c.fillEllipse(in: CGRect(x: -8.2, y: 4.2, width: 6.4, height: 3.6))
+        }]
+        let paws = [0x8D6E63, 0xF4A6B8, 0x9AA5B1, 0xFFB74D].map { rgb in makeImage(32) { c in
+            c.translateBy(x: 16, y: 16); c.setFillColor(hex(UInt32(rgb)))
+            c.fillEllipse(in: CGRect(x: -7.5, y: -10, width: 15, height: 12))
+            for (x, y) in [(-8.0, 4.0), (-3.0, 9.0), (3.0, 9.0), (8.0, 4.0)] { c.fillEllipse(in: CGRect(x: x - 3, y: y - 3.8, width: 6, height: 7.6)) }
+        } }
+        return ([.clover: clovers, .leaves: leaves, .sakura: petals, .bubble: bubbles, .paws: paws], glint)
     }
 
     static func makeEmoji(_ e: String) -> CGImage {
@@ -509,8 +538,7 @@ final class ScreenFX {
         for f in starFields { f.density = density; f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: starImages, trail: speckImages, glint: glintImage) }
         for f in natFields {
             f.density = density
-            let imgs = f.kind == .clover ? cloverImages : (f.kind == .leaves ? leafImages : petalImages)
-            f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: imgs)
+            f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: natImages[f.kind] ?? [])
         }
     }
 }
@@ -604,7 +632,7 @@ final class App: NSObject, NSApplicationDelegate {
         }
         let previewMode = CommandLine.arguments.first(where: { $0.hasPrefix("--fx-preview") }).map { String($0.dropFirst("--fx-preview".count)).trimmingCharacters(in: CharacterSet(charactersIn: "-")) }
         if let pm = previewMode {   // --fx-preview[-stars|-clover|-leaves|-sakura]: 타자 없이 효과 시연
-            fx.snowOn = pm.isEmpty || pm == "snow"; fx.starsOn = pm == "stars"; fx.natKind = FallKind(rawValue: pm).flatMap { [.clover, .leaves, .sakura].contains($0) ? $0 : nil }
+            fx.snowOn = pm.isEmpty || pm == "snow"; fx.starsOn = pm == "stars"; fx.natKind = FallKind(rawValue: pm).flatMap { $0 == .snow || $0 == .stars ? nil : $0 }
             fx.rebuild()
             fx.previewUntil = ProcessInfo.processInfo.systemUptime + 8
         }
@@ -689,7 +717,7 @@ final class App: NSObject, NSApplicationDelegate {
     func applyFx() {
         let m = fxMode
         let wantSnow = m == "snow", wantStars = m == "stars", wantXmas = xmasOn || specialKey != nil   // 특별 효과 키가 있으면 폭죽 레이어가 필요
-        let wantNat: FallKind? = ["clover", "leaves", "sakura"].contains(m) ? FallKind(rawValue: m) : nil
+        let wantNat: FallKind? = FallKind(rawValue: m).flatMap { $0 == .snow || $0 == .stars ? nil : $0 }
         let structureChanged = fx.snowOn != wantSnow || fx.starsOn != wantStars || fx.xmasOn != wantXmas || fx.natKind != wantNat
         fx.snowOn = wantSnow; fx.starsOn = wantStars; fx.xmasOn = wantXmas; fx.natKind = wantNat
         if !xmasOn { word.reset() }
@@ -701,7 +729,7 @@ final class App: NSObject, NSApplicationDelegate {
         updateIcon()
     }
     func updateIcon() {
-        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro"][fxMode] ?? "moon.zzz"
+        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint"][fxMode] ?? "moon.zzz"
         // 메뉴바 높이(약 24pt) 안에서 낼 수 있는 가장 큰 크기로 그린다
         let cfg = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
         let img = NSImage(systemSymbolName: sym, accessibilityDescription: "Typefall")?.withSymbolConfiguration(cfg)
@@ -718,7 +746,7 @@ final class App: NSObject, NSApplicationDelegate {
         m.addItem(.separator())
         let fxMenu = NSMenu()
         let curFx = fxMode
-        for (key, title) in [("off", "끄기"), ("snow", "눈"), ("stars", "별가루"), ("clover", "네잎클로버"), ("leaves", "낙엽"), ("sakura", "벚꽃")] { // 하나만 선택 가능
+        for (key, title) in [("off", "끄기"), ("snow", "눈"), ("stars", "별가루"), ("clover", "네잎클로버"), ("leaves", "낙엽"), ("sakura", "벚꽃"), ("bubble", "비눗방울"), ("paws", "고양이 발자국")] { // 하나만 선택 가능
             let i = NSMenuItem(title: title, action: #selector(pickFxMode(_:)), keyEquivalent: "")
             i.target = self; i.representedObject = key; i.state = key == curFx ? .on : .off
             fxMenu.addItem(i)

@@ -1,6 +1,6 @@
 /*
  * Typefall core — 타자 칠 때 화면에 내리는 효과 엔진 (캔버스 2D, 의존성 없음)
- *   눈 / 별가루(윤슬 반짝임) / 네잎클로버 / 낙엽 / 벚꽃 / 크리스마스(빨강·초록 크로세트 폭죽 + 이모지)
+ *   눈 / 별가루(윤슬 반짝임) / 네잎클로버 / 낙엽 / 벚꽃 / 비눗방울 / 고양이 발자국 / 크리스마스(빨강·초록 크로세트 폭죽 + 이모지)
  * 브라우저(Chrome 확장·데모)에서는 전역 `Typefall`, Node에서는 module.exports.
  * 좌표는 CSS px, y는 아래로 증가. 맥 앱(Swift)의 로직과 같은 상수를 쓴다.
  * 프라이버시: 키 "내용"은 쓰지 않는다. WordTrigger는 물리 키 위치(event.code)의
@@ -78,11 +78,11 @@
   }
 
   // ── 스프라이트(오프스크린 캔버스에 한 번만 그림) ───────────────────────
-  // 앞의 EMOJI_REPEATABLE 개(트리·산타·산타 부인)는 여러 번 나와도 되고, 나머지는 화면에 동시에 하나씩만 나온다.
-  // 한 번에 12개: 트리 3~4개(화면 전체 최대 4개, 가장 많음) + 산타 2개 + 나머지는 하나씩(❄️ 는 항상 포함).
+  // 앞의 EMOJI_REPEATABLE 개(트리)만 여러 번 나와도 되고, 나머지는 화면에 동시에 하나씩만 나온다.
+  // 한 번에 12개: 트리 3~4개(화면 전체 최대 4개, 가장 많음) + 나머지는 하나씩(❄️ 는 항상 포함).
   // 🫎(무스)는 Unicode 15 이모지라 오래된 OS(macOS 13.2 이하, Windows 10 등)에서는 글자가 깨져 보일 수 있다.
   const EMOJIS = ['🎄', '🎅', '🤶', '🎁', '⛄', '🔔', '⭐', '🫎', '🍪', '❄️'];
-  const EMOJI_REPEATABLE = 3, MAX_TREES = 4;
+  const EMOJI_REPEATABLE = 1, MAX_TREES = 4;
   const XMAS_COLORS = ['#FF3B4E', '#2EC866']; // 빨강, 초록
 
   function buildSprites(createCanvas, dpr, tint) {
@@ -141,7 +141,7 @@
       x.bezierCurveTo(2, -19, 8, -19, 9, -14); x.bezierCurveTo(10, -7, 4, -5, 0, -2); x.closePath(); x.fill();
       x.strokeStyle = 'rgba(255,255,255,0.35)'; x.lineWidth = 1; x.beginPath(); x.moveTo(0, -3); x.lineTo(0, -13); x.stroke();
     };
-    spr.clovers = ['#34C759', '#2EA84F', '#4CD174'].map((c) => mk(40, (x) => {
+    spr.clovers = ['#34C759', '#2EA84F', '#4CD174', '#8BDB5A', '#1F8A4C'].map((c) => mk(40, (x) => {
       x.translate(20, 20);
       for (let k = 0; k < 4; k++) { x.save(); x.rotate(k * Math.PI / 2); heart(x, c); x.restore(); }
       glow(x, 0, 0, [255, 255, 255], 4, 0.25);
@@ -165,6 +165,18 @@
       x.bezierCurveTo(-9, 4, -8, -9, -2, -11); x.lineTo(0, -8); x.lineTo(2, -11); x.bezierCurveTo(8, -9, 9, 4, 0, 10); x.closePath(); x.fill();
       glow(x, 0, -6, hexRgb(b), 9, 0.9);   // 끝쪽을 연하게
     }));
+    spr.bubbles = [mk(32, (x) => {
+      x.translate(16, 16); glow(x, 0, 0, [190, 230, 255], 14, 0.22);
+      x.lineWidth = 1.6; x.strokeStyle = 'rgba(170,220,255,0.85)'; x.beginPath(); x.arc(0, 0, 13, 0, TAU); x.stroke();
+      x.strokeStyle = 'rgba(255,170,220,0.9)'; x.beginPath(); x.arc(0, 0, 13, 0.2, 1.4); x.stroke();
+      x.strokeStyle = 'rgba(200,255,170,0.9)'; x.beginPath(); x.arc(0, 0, 13, Math.PI + 0.2, Math.PI + 1.4); x.stroke();
+      x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.ellipse(-5, -6, 3.2, 1.8, -0.7, 0, TAU); x.fill();
+    })];
+    spr.paws = ['#8D6E63', '#F4A6B8', '#9AA5B1', '#FFB74D'].map((c) => mk(32, (x) => {
+      x.translate(16, 16); x.fillStyle = c;
+      const el = (cx, cy, rx, ry, rot) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot || 0, 0, TAU); x.fill(); };
+      el(0, 4, 7.5, 6); el(-8, -4, 3, 3.8, -0.4); el(-3, -9, 3, 3.8, -0.1); el(3, -9, 3, 3.8, 0.1); el(8, -4, 3, 3.8, 0.4);
+    }));
     spr.emojiRepeatable = EMOJI_REPEATABLE; spr.emojiSnowflake = EMOJIS.indexOf('❄️');
     return spr;
   }
@@ -174,10 +186,14 @@
   const FALL = {
     snow:   { max: 70, size: [6, 14],  vy: [55, 100], drift: [6, 20],  spin: [-1.5, 1.5] },
     stars:  { max: 50, size: [9, 17],  vy: [45, 85],  drift: [6, 20],  spin: [-1.5, 1.5] },
-    clover: { max: 40, size: [16, 26], vy: [40, 80],  drift: [15, 30], spin: [-1, 1], rot: true },
+    clover: { max: 40, size: [11, 18], vy: [40, 80],  drift: [15, 30], spin: [-1, 1], rot: true },
     leaves: { max: 40, size: [16, 28], vy: [50, 95],  drift: [30, 60], spin: [-2, 2], rot: true, flip: true },
     sakura: { max: 70, size: [9, 16],  vy: [30, 60],  drift: [25, 50], spin: [-1.5, 1.5], rot: true, flip: true },
+    // ttl = 수명(초), fade = 나타나고 사라지는 시간, pop = 사라질 때 살짝 커지며 터짐
+    bubble:    { max: 30,  size: [14, 30], vy: [25, 55], drift: [20, 40], spin: [0, 0], ttl: [2.5, 7], fade: 0.25, pop: true, alpha: [0.6, 0.95] },
+    paws:      { max: 40,  size: [14, 24], vy: [40, 80], drift: [8, 20],  spin: [-0.3, 0.3], rot: true, alpha: [0.6, 0.9] },
   };
+  const NATURE_KINDS = ['clover', 'leaves', 'sakura', 'bubble', 'paws'];
   class Falling {
     constructor(kind) {
       this.kind = kind === true ? 'stars' : kind === false || !kind ? 'snow' : kind;
@@ -194,13 +210,14 @@
         this.flakes.push({
           img: pick(images), size: rnd(c.size[0], c.size[1]),
           x: rnd(0, W), y: -10, vy: rnd(c.vy[0], c.vy[1]),
-          phase: rnd(0, TAU), drift: rnd(c.drift[0], c.drift[1]), spin: rnd(c.spin[0], c.spin[1]), alpha: rnd(0.55, 0.95),
-          rot0: c.rot ? rnd(0, TAU) : 0, tw: rnd(2, 5.5),
+          phase: rnd(0, TAU), drift: rnd(c.drift[0], c.drift[1]), spin: rnd(c.spin[0], c.spin[1]), alpha: c.alpha ? rnd(c.alpha[0], c.alpha[1]) : rnd(0.55, 0.95),
+          rot0: c.rot ? rnd(0, TAU) : 0, tw: rnd(2, 5.5), age: 0, ttl: c.ttl ? rnd(c.ttl[0], c.ttl[1]) : 0,
         });
       }
       const t = this.t;
       this.flakes = this.flakes.filter((f) => {
         f.y += f.vy * dt; f.x += Math.sin(t * 0.8 + f.phase) * f.drift * dt;
+        f.age += dt; if (f.ttl && f.age > f.ttl) return false;
         if (this.stars && trail.length && this.dust.length < maxD && Math.random() < dt * 5) { // 꼬리 가루
           const life = rnd(0.7, 1.3);
           this.dust.push({ img: pick(trail), size: rnd(3, 7), x: f.x + rnd(-4, 4), y: f.y + rnd(-6, 2), vy: rnd(6, 22), life, max: life, a: rnd(0.5, 0.9) });
@@ -215,7 +232,12 @@
         ctx.save(); ctx.translate(f.x, f.y);
         if (this.stars) { ctx.rotate(t * f.spin + f.phase); ctx.globalAlpha = 0.55 + 0.4 * Math.sin(t * 4 + f.phase); }
         else {
-          ctx.globalAlpha = f.alpha;
+          let a = f.alpha, sc = 1;
+          if (f.ttl) { // 나타나고 사라지기(+ 방울은 터지듯 커짐)
+            const inK = clamp(f.age / c.fade, 0, 1), outK = clamp((f.ttl - f.age) / c.fade, 0, 1);
+            a *= inK * outK; if (c.pop) sc = 1 + 0.5 * (1 - outK);
+          }
+          ctx.globalAlpha = a; if (sc !== 1) ctx.scale(sc, sc);
           if (c.rot) ctx.rotate(f.rot0 + t * f.spin * 0.5);
           if (c.flip) ctx.scale(Math.max(0.2, Math.abs(Math.cos(t * 1.6 + f.phase))), 1);   // 뒤집히며 팔랑
         }
@@ -241,7 +263,7 @@
   class Christmas {
     constructor() { this.parts = []; this.queue = []; this.burstsLeft = 0; this.emojiAcc = 0; this.burstAcc = 0; this.t = 0; this.maxParts = 900; this.spr = null; }
     get active() { return this.parts.length > 0 || this.queue.length > 0 || this.burstsLeft > 0; }
-    /** 이모지 12개를 예약한다. 반복 가능 그룹(트리·산타) 밖의 이모지는 화면·대기열에 이미 있으면 다시 뽑지 않는다. */
+    /** 이모지 12개를 예약한다. 반복 가능 그룹(트리) 밖의 이모지는 화면·대기열에 이미 있으면 다시 뽑지 않는다. */
     trigger(spr) {
       spr = spr || this.spr;
       this.burstsLeft += 9;
@@ -251,16 +273,14 @@
       let treeNow = this.queue.filter((i) => i === 0).length;
       for (const p of this.parts) if (p.kind === 'emoji') { busy.add(p.idx); if (p.idx === 0) treeNow++; }
       const trees = Math.min(3 + ((Math.random() * 2) | 0), Math.max(0, MAX_TREES - treeNow));   // 트리 3~4개, 화면 전체로는 최대 4개
-      const santas = Array.from({ length: 2 }, () => 1 + ((Math.random() * (R - 1)) | 0));       // 산타/산타 부인 2개(반복 가능)
-      const slots = total - trees - santas.length;
+      const slots = total - trees;
       const others = [];
       for (let i = R; i < n; i++) if (!busy.has(i)) others.push(i);
       shuffle(others);
       const sf = others.indexOf(spr.emojiSnowflake);
       if (sf > 0) { others.splice(sf, 1); others.unshift(spr.emojiSnowflake); }                     // ❄️ 는 항상 먼저 뽑음
       const picked = others.slice(0, slots);
-      const fill = Array.from({ length: slots - picked.length }, () => 1 + ((Math.random() * (R - 1)) | 0)); // 모자라면 산타로
-      this.queue.push(...shuffle([].concat(Array(trees).fill(0), santas, picked, fill)));
+      this.queue.push(...shuffle([].concat(Array(trees).fill(0), picked)));
     }
 
     burst(W, H, spr) {
@@ -336,7 +356,8 @@
       this.opts = { mode: 'snow', tint: 'default', density: 'm', xmas: false, specialKey: '' }; // specialKey: 이 키를 누르면 크리스마스 효과(빈 값 = 사용 안 함)
       this.tracker = new TypingTracker(); this.word = new WordTrigger();
       this.snow = new Falling('snow'); this.starsF = new Falling('stars'); this.xmas = new Christmas();
-      this.nature = { clover: new Falling('clover'), leaves: new Falling('leaves'), sakura: new Falling('sakura') };
+      this.nature = {};
+      for (const k of NATURE_KINDS) this.nature[k] = new Falling(k);
       this.spr = buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint]);
     }
     /** {mode, tint, density, xmas, specialKey} 일부만 넘겨도 됨 */
@@ -371,7 +392,7 @@
       const den = DENSITY[normDensity(this.opts.density)] || 1, m = this.opts.mode;
       this.snow.step(dt, m === 'snow' && !idle ? lerp(1, 5, lv) * den : 0, this.W, this.H, den, this.spr.dots, []);
       this.starsF.step(dt, m === 'stars' && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, this.spr.stars, this.spr.specks);
-      const imgs = { clover: this.spr.clovers, leaves: this.spr.leaves, sakura: this.spr.petals };
+      const imgs = { clover: this.spr.clovers, leaves: this.spr.leaves, sakura: this.spr.petals, bubble: this.spr.bubbles, paws: this.spr.paws };
       for (const k in this.nature) this.nature[k].step(dt, m === k && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, imgs[k], []);
       this.xmas.update(dt, this.W, this.H, this.spr);
     }
@@ -384,7 +405,7 @@
     }
   }
 
-  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, EMOJIS, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
+  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, EMOJIS, NATURE_KINDS, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Typefall = api;
 })(typeof self !== 'undefined' ? self : this);

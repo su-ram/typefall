@@ -60,12 +60,12 @@ check('레인보우 = 파스텔 6색 배열', Array.isArray(T.TINTS.rainbow) && 
 check('예전 id 변환(midhigh→m, high→l, low→xs)', [T.normDensity('midhigh'), T.normDensity('high'), T.normDensity('low')].join(), 'm,l,xs');
 check('알 수 없는 값은 기본(m)', T.normDensity('???'), 'm');
 check('기본 배율 = 1.0(보통)', T.DENSITY.m, 1);
-{ // 이모지 규칙: 트리 3~4개(가장 많음, 화면 전체 최대 4) + 산타 2개 + 나머지는 하나씩, ❄️ 항상 포함
+{ // 이모지 규칙: 트리 3~4개(가장 많음, 화면 전체 최대 4) + 나머지는 하나씩(산타도 반복 없음), ❄️ 항상 포함
   const tf = new T.Typefall({ W: 1200, H: 800, dpr: 1, createCanvas }); const R = tf.spr.emojiRepeatable, N = tf.spr.emojis.length, SNOW = tf.spr.emojiSnowflake;
   check('목록: 사슴·양말 없음, 무스 있음', !T.EMOJIS.includes('🦌') && !T.EMOJIS.includes('🧦') && T.EMOJIS.includes('🫎'), true);
   check('이모지 이미지 개수 = 10', N, 10);
   check('❄️ 인덱스 존재', SNOW >= R, true);
-  let ok = { total: true, trees: true, most: true, uniq: true, snow: true, santa: true }, treeCounts = new Set();
+  let ok = { total: true, trees: true, most: true, uniq: true, snow: true }, treeCounts = new Set();
   for (let k = 0; k < 300; k++) {
     tf.xmas.queue = []; tf.xmas.parts = []; tf.triggerChristmas();
     const q = tf.xmas.queue, cnt = {}; q.forEach((i) => { cnt[i] = (cnt[i] || 0) + 1; });
@@ -75,15 +75,13 @@ check('기본 배율 = 1.0(보통)', T.DENSITY.m, 1);
     if (Object.entries(cnt).some(([i, c]) => Number(i) !== 0 && c >= trees)) ok.most = false;       // 트리가 가장 많아야 함
     if (Object.entries(cnt).some(([i, c]) => Number(i) >= R && c > 1)) ok.uniq = false;             // 그룹 밖은 중복 금지
     if (!cnt[SNOW]) ok.snow = false;
-    if (((cnt[1] || 0) + (cnt[2] || 0)) !== 2) ok.santa = false;                                   // 산타 계열 2개
   }
   check('항상 12개 (300회)', ok.total, true);
   check('트리는 3~4개', ok.trees, true);
   check('트리가 가장 많음', ok.most, true);
   check('트리 3개·4개 둘 다 나옴(무작위)', treeCounts.has(3) && treeCounts.has(4), true);
-  check('트리·산타 밖 이모지는 중복 없음', ok.uniq, true);
+  check('트리 밖 이모지(산타 포함)는 중복 없음', ok.uniq, true);
   check('❄️ 눈송이가 매번 포함', ok.snow, true);
-  check('산타 계열 2개', ok.santa, true);
   // 겹쳐서 연속 트리거: 트리는 대기열+화면 합쳐 최대 4개, 그룹 밖 이모지는 중복 없음
   let overlapOk = true, uniqOk = true;
   for (let k = 0; k < 200; k++) {
@@ -95,8 +93,8 @@ check('기본 배율 = 1.0(보통)', T.DENSITY.m, 1);
   check('연속 트리거에도 그룹 밖 중복 없음', uniqOk, true);
 }
 // 새 모드 / 윤슬 / 지정 키
-for (const m of ['clover', 'leaves', 'sakura']) {
-  const r = sim(m); check(`${m} 개수(0<n≤70)`, r.peak, (v) => v > 0 && v <= 70); check(`${m} NaN 없음`, r.bad, false); check(`${m} 방치 후 active=false`, r.tf.active, false);
+for (const m of T.NATURE_KINDS) {
+  const r = sim(m); check(`${m} 개수(0<n≤140)`, r.peak, (v) => v > 0 && v <= 140); check(`${m} NaN 없음`, r.bad, false); check(`${m} 방치 후 active=false`, r.tf.active, false);
 }
 { const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ xmas: false });
   check('기본: 지정 키 없음 → 반응 없음', tf.key('KeyJ'), false);
