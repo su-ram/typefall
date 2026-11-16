@@ -21,7 +21,7 @@ const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function loadSettings() {
   try {
     const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
-    if (s.mode === 'off' || core.enabledEffects().some((e) => e.id === s.mode)) settings.mode = s.mode;   // 꺼진(enabled:false) 효과를 가리키면 기본값
+    if (s.mode === 'off' || s.mode === core.RANDOM_MODE.id || core.enabledEffects().some((e) => e.id === s.mode)) settings.mode = s.mode;   // 꺼진(enabled:false) 효과를 가리키면 기본값
     if (s.tint in core.TINTS) settings.tint = s.tint;
     settings.density = core.normDensity(s.density);   // 예전 값(low/midlow/…)은 같은 양의 새 값으로 변환
     if (typeof s.xmas === 'boolean') settings.xmas = s.xmas;
@@ -36,7 +36,7 @@ function saveSettings() {
 // ── 문구(한국어/영어) ──────────────────────────────────────────────────
 const KO = (app.getLocale() || 'en').toLowerCase().startsWith('ko');
 // 화면 효과 목록: 코어의 효과 메타데이터(enabled)에서 만든다
-const modeLabels = (lang, off) => ({ off, ...Object.fromEntries(core.enabledEffects().map((e) => [e.id, e[lang]])) });
+const modeLabels = (lang, off) => ({ off, [core.RANDOM_MODE.id]: core.RANDOM_MODE[lang], ...Object.fromEntries(core.enabledEffects().map((e) => [e.id, e[lang]])) });
 const T = KO ? {
   effect: '화면 효과', modes: modeLabels('ko', '끄기'),
   tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이', rainbow: '레인보우' },

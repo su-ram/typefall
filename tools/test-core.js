@@ -106,5 +106,22 @@ for (const m of T.NATURE_KINDS) {
   check('메타데이터에 모든 효과가 있음', known.every((k) => ids.includes(k)) && ids.every((k) => known.includes(k)), true);
   check('enabledEffects 는 enabled 만', T.enabledEffects().every((e) => e.enabled) && T.enabledEffects().length === T.EFFECTS.filter((e) => e.enabled).length, true);
   check('모든 효과에 ko/en 이름', T.EFFECTS.every((e) => e.ko && e.en), true); }
+// 랜덤 모드: 켜진 효과 중 하나를 고르고, 화면이 빈 뒤 다시 타자를 시작하면 새로 고른다
+{ const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ mode: 'random' });
+  const ids = T.enabledEffects().map((e) => e.id);
+  check('랜덤: 타자 전에는 미정', tf.currentMode, null);
+  let t = 0; for (let i = 0; i < 300; i++) { t += 16; if (i % 6 === 0) tf.hit(t); tf.update(0.016, t); tf.draw(ctx); }
+  const first = tf.currentMode;
+  check('랜덤: 켜진 효과 중 하나 선택', ids.includes(first), true);
+  check('랜덤: 고른 효과가 실제로 내림', tf.particles > 0, true);
+  tf.hit(t += 16); check('랜덤: 입자가 남아 있으면 유지', tf.currentMode, first);
+  for (let i = 0; i < 60 * 40; i++) { t += 1000 / 60; tf.update(1 / 60, t); }
+  check('랜덤: 방치 후 화면 비움', tf.active, false);
+  tf.hit(t += 16); check('랜덤: 다시 타자 → 다른 효과', tf.currentMode !== first && ids.includes(tf.currentMode), true);
+  const seen = new Set(); for (let k = 0; k < 400; k++) seen.add(tf.pickRandom());
+  check('랜덤: 꺼진 효과는 안 나옴', [...seen].every((id) => ids.includes(id)), true);
+  check('랜덤: 여러 효과가 고루 나옴', seen.size, ids.length);
+  tf.setOptions({ mode: 'snow' }); check('랜덤 해제 → 지정 효과', tf.currentMode, 'snow'); }
+check('랜덤 메타데이터', T.RANDOM_MODE.id === 'random' && !!T.RANDOM_MODE.ko && !!T.RANDOM_MODE.en, true);
 console.log(fails ? `\n${fails} FAILED` : '\nALL PASSED');
 process.exit(fails ? 1 : 0);

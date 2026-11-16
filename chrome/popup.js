@@ -1,7 +1,8 @@
 // 화면 효과 목록은 코어의 효과 메타데이터(enabled)에서 만든다
 (() => {
   const sel = document.getElementById('mode');
-  for (const [id, ko] of [['off', '끄기'], ...self.Typefall.enabledEffects().map((e) => [e.id, e.ko])]) sel.add(new Option(ko, id));
+  const TF = self.Typefall;
+  for (const [id, ko] of [['off', '끄기'], [TF.RANDOM_MODE.id, TF.RANDOM_MODE.ko], ...TF.enabledEffects().map((e) => [e.id, e.ko])]) sel.add(new Option(ko, id));
 })();
 const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, specialKey: '', specialKeyLabel: '' };
 const LEGACY_DENSITY = self.Typefall.DENSITY_LEGACY; // 이전 버전에서 저장된 값(5단계 xs/xl 포함) → 3단계
