@@ -457,6 +457,8 @@
     { id: 'billiard', ko: '당구공', en: 'Pool balls', enabled: false },
   ];
   const enabledEffects = () => EFFECTS.filter((e) => e.enabled);
+  /** '랜덤' 모드: 효과를 지정하지 않으면 켜진 효과 중 하나를 무작위로 고른다(화면이 비어 있을 때 새로 타자를 시작하면 다시 고름). */
+  const RANDOM_MODE = { id: 'random', ko: '랜덤', en: 'Random' };
   class Falling {
     constructor(kind) {
       this.kind = kind === true ? 'stars' : kind === false || !kind ? 'snow' : kind;
@@ -626,7 +628,9 @@
     /** {mode, tint, density, xmas, specialKey} 일부만 넘겨도 됨 */
     setOptions(o) {
       const prevTint = this.opts.tint;
+      const prevMode = this.opts.mode;
       Object.assign(this.opts, o);
+      if (this.opts.mode === RANDOM_MODE.id && prevMode !== RANDOM_MODE.id) this.randomMode = null;   // 랜덤으로 바꾸면 다음 타자에서 새로 고름
       if (this.opts.tint !== prevTint) this.spr = buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint]);
       if (!this.opts.xmas) this.word.reset();
     }
@@ -634,7 +638,21 @@
       this.W = W; this.H = H;
       if (dpr && dpr !== this.dpr) { this.dpr = dpr; this.spr = buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint]); }
     }
-    hit(now) { this.tracker.hit(now === undefined ? performance.now() : now); }
+    /** 실제로 그릴 효과. mode 가 'random' 이면 무작위로 고른 효과 */
+    get currentMode() { return this.opts.mode === RANDOM_MODE.id ? this.randomMode : this.opts.mode; }
+    /** 랜덤: 켜진 효과 중 하나를 고른다(가능하면 직전과 다른 것) */
+    pickRandom() {
+      const ids = enabledEffects().map((e) => e.id), others = ids.filter((id) => id !== this.randomMode);
+      this.randomMode = pick(others.length ? others : ids);
+      return this.randomMode;
+    }
+    hit(now) {
+      // 랜덤: 화면이 비어 있는 상태에서 타자를 시작하면 새 효과를 고른다(떨어지는 중인 입자는 끊지 않음)
+      if (this.opts.mode === RANDOM_MODE.id && (!this.randomMode || (this.tracker.idle && !this.particles))) this.pickRandom();
+      this.tracker.hit(now === undefined ? performance.now() : now);
+    }
+    /** 화면에 남은 낙하 입자 수 */
+    get particles() { return this.snow.count + this.starsF.count + Object.values(this.nature).reduce((n, f) => n + f.count, 0); }
     /** 키 하나(event.code). 지정 키는 항상, 크리스마스 단어는 켜져 있을 때만 본다. 감지되면 true */
     key(code) {
       if (this.opts.specialKey && code === this.opts.specialKey) { this.xmas.trigger(this.spr); return true; }
@@ -652,7 +670,7 @@
       dt = Math.min(dt, 0.1);
       this.tracker.update(now === undefined ? performance.now() : now);
       const lv = this.tracker.level, idle = this.tracker.idle;
-      const den = DENSITY[normDensity(this.opts.density)] || 1, m = this.opts.mode;
+      const den = DENSITY[normDensity(this.opts.density)] || 1, m = this.currentMode;
       this.snow.step(dt, m === 'snow' && !idle ? lerp(1, 5, lv) * den : 0, this.W, this.H, den, this.spr.dots, []);
       this.starsF.step(dt, m === 'stars' && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, this.spr.stars, this.spr.specks);
       const imgs = { clover: this.spr.clovers, leaves: this.spr.leaves, sakura: this.spr.petals, bubble: this.spr.bubbles, paws: this.spr.paws, ribbon: this.spr.ribbons, pretzel: this.spr.pretzels, money: this.spr.bills,
@@ -670,7 +688,7 @@
     }
   }
 
-  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, EMOJIS, NATURE_KINDS, EFFECTS, enabledEffects, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
+  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, EMOJIS, NATURE_KINDS, EFFECTS, enabledEffects, RANDOM_MODE, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Typefall = api;
 })(typeof self !== 'undefined' ? self : this);
