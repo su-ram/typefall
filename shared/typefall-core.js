@@ -17,10 +17,10 @@
   /** 효과 색상(눈 + 별가루 공통). null = 기본(별: 금/연노랑/핑크/하늘, 눈: 옅은 하늘색), 배열 = 입자마다 무작위로 섞어 씀 */
   const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF',
     rainbow: ['#FFB3D1', '#FFD1B3', '#FFE08A', '#B5EAD7', '#B3DEFF', '#C7B8FF'] }; // 핑크·피치·노랑·민트·스카이·라벤더
-  /** 파티클 양 단계(아주 조금/조금/보통/많이/아주 많이). 기준(기본) = m(보통) = 1.0, 높을수록 많아진다. */
-  const DENSITY = { xs: 0.3, s: 0.6, m: 1.0, l: 1.6, xl: 2.4 };
-  /** 0.1.2 이하에서 저장된 id → 같은 양의 새 id */
-  const DENSITY_LEGACY = { low: 'xs', midlow: 's', mid: 's', midhigh: 'm', high: 'l' };
+  /** 파티클 양 단계(조금/보통/많이). 예전 배율(0.6/1.0/1.6)보다 전체적으로 30% 줄였다. 기본 = m(보통). */
+  const DENSITY = { s: 0.42, m: 0.7, l: 1.12 };
+  /** 예전에 저장된 id → 새 id (5단계 xs/xl 은 가까운 끝 단계로, 0.1.2 이하 id 도 변환) */
+  const DENSITY_LEGACY = { xs: 's', xl: 'l', low: 's', midlow: 's', mid: 's', midhigh: 'm', high: 'l' };
   const normDensity = (d) => (DENSITY[d] !== undefined ? d : (DENSITY_LEGACY[d] || 'm'));
 
   const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
