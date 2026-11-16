@@ -397,17 +397,6 @@
     });
     spr.sports = [basketball, rugby, baseball, tennis];   // 스포츠 공 한 효과로 묶음(농구·럭비·야구·테니스)
     spr.billiards = [pool(8, '#1B1B1B'), pool(1, '#F6C42B'), pool(2, '#2457C5'), pool(3, '#D1352B'), pool(4, '#6A2C91')];
-    // ── 종이비행기 ✈ (코가 +x 방향): 윗날개 밝게 / 아랫날개 중간 / 가운데 접힌 면 어둡게 ──
-    const plane = (c) => mk(40, (x) => {
-      x.translate(20, 20); x.lineJoin = 'round'; x.lineWidth = 0.9; x.strokeStyle = 'rgba(70,80,100,0.6)';
-      const tri = (pts, fill) => { x.fillStyle = fill; x.beginPath(); x.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) x.lineTo(pts[i][0], pts[i][1]); x.closePath(); x.fill(); x.stroke(); };
-      tri([[18, 1], [-16, 12], [-6, 2]], shade(c, 0.86));          // 아랫날개
-      tri([[18, 1], [-6, 2], [-11, 7]], shade(c, 0.66));           // 가운데 접힌 면(그늘)
-      tri([[18, 1], [-16, -12], [-6, 0]], shade(c, 1.0));          // 윗날개
-      x.strokeStyle = 'rgba(70,80,100,0.45)'; x.beginPath(); x.moveTo(18, 1); x.lineTo(-6, 1); x.stroke();   // 가운데 접힌 선
-      x.fillStyle = 'rgba(255,255,255,0.55)'; x.beginPath(); x.moveTo(14, -0.5); x.lineTo(-8, -8); x.lineTo(-4, -2); x.closePath(); x.fill();
-    });
-    spr.planes = ['#FFFFFF', '#BFE3FF', '#FFD6E7', '#FFF2B3', '#D8F5D0'].map(plane);
     spr.paws = ['#8D6E63', '#F4A6B8', '#9AA5B1', '#FFB74D'].map((c) => mk(32, (x) => {
       x.translate(16, 16); x.fillStyle = c;
       const el = (cx, cy, rx, ry, rot) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot || 0, 0, TAU); x.fill(); };
@@ -438,11 +427,10 @@
     fastfood:  { max: 30,  size: [18, 28], vy: [45, 90], drift: [15, 35], spin: [-1.5, 1.5], rot: true },
     sports:    { max: 30,  size: [16, 26], vy: [45, 90], drift: [10, 25], spin: [-2, 2], rot: true },
     billiard:  { max: 30,  size: [14, 22], vy: [45, 90], drift: [10, 25], spin: [-2, 2], rot: true },
-    paperplane: { max: 25, size: [18, 28], vy: [50, 90], drift: [40, 80], spin: [0, 0], glide: true },
     paws:      { max: 40,  size: [14, 24], vy: [40, 80], drift: [8, 20],  spin: [-0.3, 0.3], rot: true, alpha: [0.6, 0.9] },
   };
   const POP_TIME = 0.2;   // 방울이 터지는 시간(초)
-  const NATURE_KINDS = ['clover', 'leaves', 'sakura', 'bubble', 'paws', 'ribbon', 'pretzel', 'money', 'strawberry', 'cherry', 'carrot', 'mandarin', 'tomato', 'fastfood', 'sports', 'billiard', 'paperplane'];
+  const NATURE_KINDS = ['clover', 'leaves', 'sakura', 'bubble', 'paws', 'ribbon', 'pretzel', 'money', 'strawberry', 'cherry', 'carrot', 'mandarin', 'tomato', 'fastfood', 'sports', 'billiard'];
   /**
    * 효과 메타데이터 (내부용, 코드로만 관리). 메뉴·팝업의 효과 목록은 여기서 만든다.
    * enabled: false 로 두면 목록에서 빠진다(시안·보류 효과). 저장된 설정이 꺼진 효과를 가리키면 끄기로 취급.
@@ -459,7 +447,6 @@
     { id: 'cherry', ko: '체리', en: 'Cherries', enabled: true },
     { id: 'sports', ko: '스포츠 공', en: 'Sports balls', enabled: true },
     { id: 'fastfood', ko: '패스트푸드', en: 'Fast food', enabled: true },
-    { id: 'paperplane', ko: '종이비행기', en: 'Paper planes', enabled: true },
     // 시안 단계(스프라이트만 있고 메뉴에는 노출하지 않음)
     { id: 'ribbon', ko: '리본', en: 'Ribbons', enabled: false },
     { id: 'pretzel', ko: '프레첼', en: 'Pretzels', enabled: false },
@@ -514,8 +501,7 @@
           if (c.fade) a *= clamp(f.age / c.fade, 0, 1);
           if (f.popT !== undefined) { const k = f.popT / POP_TIME; a *= 1 - k; sc = 1 + 0.6 * k; }
           ctx.globalAlpha = a; if (sc !== 1) ctx.scale(sc, sc);
-          if (c.glide) ctx.rotate(Math.atan2(f.vy, Math.cos(t * 0.8 + f.phase) * 0.8 * f.drift));   // 진행 방향으로 코를 향함
-          else if (c.rot) ctx.rotate(f.rot0 + t * f.spin * 0.5);
+          if (c.rot) ctx.rotate(f.rot0 + t * f.spin * 0.5);
           if (c.flip) ctx.scale(Math.max(0.2, Math.abs(Math.cos(t * 1.6 + f.phase))), 1);   // 뒤집히며 팔랑
         }
         ctx.drawImage(f.img, -f.size / 2, -f.size / 2, f.size, f.size);
@@ -671,7 +657,7 @@
       this.starsF.step(dt, m === 'stars' && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, this.spr.stars, this.spr.specks);
       const imgs = { clover: this.spr.clovers, leaves: this.spr.leaves, sakura: this.spr.petals, bubble: this.spr.bubbles, paws: this.spr.paws, ribbon: this.spr.ribbons, pretzel: this.spr.pretzels, money: this.spr.bills,
         strawberry: this.spr.strawberries, cherry: this.spr.cherries, carrot: this.spr.carrots, mandarin: this.spr.mandarins, tomato: this.spr.tomatoes, fastfood: this.spr.fastfood,
-        sports: this.spr.sports, billiard: this.spr.billiards, paperplane: this.spr.planes };
+        sports: this.spr.sports, billiard: this.spr.billiards };
       for (const k in this.nature) this.nature[k].step(dt, m === k && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, imgs[k], []);
       this.xmas.update(dt, this.W, this.H, this.spr);
     }

@@ -37,7 +37,7 @@ func hex(_ v: UInt32) -> CGColor {
 }
 
 /// 눈/별가루: 위에서 생성되어 아래로만 떨어진다 (레이어 좌표는 y가 위로 증가 → 아래로 = y 감소)
-enum FallKind: String, CaseIterable { case snow, stars, clover, leaves, sakura, bubble, paws, money, cherry, sports, fastfood, paperplane }
+enum FallKind: String, CaseIterable { case snow, stars, clover, leaves, sakura, bubble, paws, money, cherry, sports, fastfood }
 
 final class SnowField {
     final class Flake { let layer = CALayer(); let glint = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0, rot0 = 0.0, tw = 0.0, d = 0.0, age = 0.0, alpha = 1.0, popT: Double? = nil, popAt: Double? = nil }
@@ -51,7 +51,7 @@ final class SnowField {
     struct Cfg {
         var max: Int, size: ClosedRange<Double>, vy: ClosedRange<Double>, drift: ClosedRange<Double>, spin: ClosedRange<Double>
         var alpha: ClosedRange<Double> = 0.55...0.95
-        var rot = false, flip = false, glide = false, fade = 0.0, popAt: Double? = nil
+        var rot = false, flip = false, fade = 0.0, popAt: Double? = nil
     }
     var cfg: Cfg {
         switch kind {
@@ -64,7 +64,6 @@ final class SnowField {
         case .money: return Cfg(max: 40, size: 20...32, vy: 50...95, drift: 30...60, spin: -1.5...1.5, rot: true, flip: true)
         case .sports: return Cfg(max: 30, size: 16...26, vy: 45...90, drift: 10...25, spin: -2...2, rot: true)
         case .fastfood: return Cfg(max: 30, size: 18...28, vy: 45...90, drift: 15...35, spin: -1.5...1.5, rot: true)
-        case .paperplane: return Cfg(max: 25, size: 18...28, vy: 50...90, drift: 40...80, spin: 0...0, glide: true)
         case .cherry: return Cfg(max: 35, size: 16...26, vy: 45...90, drift: 15...35, spin: -1.5...1.5, rot: true)
         case .paws: return Cfg(max: 40, size: 14...24, vy: 40...80, drift: 8...20, spin: -0.3...0.3, alpha: 0.6...0.9, rot: true)
         }
@@ -117,8 +116,7 @@ final class SnowField {
                 var a = f.alpha
                 if c.fade > 0 { a *= min(1, max(0, f.age / c.fade)) }
                 f.layer.opacity = Float(a)
-                var tr = c.glide ? CATransform3DMakeRotation(CGFloat(atan2(-f.vy, cos(t * 0.8 + f.phase) * 0.8 * f.drift)), 0, 0, 1)   // 진행 방향으로 코를 향함
-                    : (c.rot ? CATransform3DMakeRotation(CGFloat(f.rot0 + t * f.spin * 0.5), 0, 0, 1) : CATransform3DIdentity)
+                var tr = c.rot ? CATransform3DMakeRotation(CGFloat(f.rot0 + t * f.spin * 0.5), 0, 0, 1) : CATransform3DIdentity
                 if c.flip { tr = CATransform3DScale(tr, CGFloat(max(0.2, abs(cos(t * 1.6 + f.phase)))), 1, 1) }
                 f.layer.transform = tr
             }
@@ -353,7 +351,7 @@ struct FxMode { let key: String; let title: String; var enabled = true }
 let fxModes: [FxMode] = [
     FxMode(key: "snow", title: "눈"), FxMode(key: "stars", title: "별가루"), FxMode(key: "clover", title: "네잎클로버"), FxMode(key: "leaves", title: "낙엽"),
     FxMode(key: "sakura", title: "벚꽃"), FxMode(key: "bubble", title: "비눗방울"), FxMode(key: "paws", title: "고양이 발자국"), FxMode(key: "money", title: "지폐"),
-    FxMode(key: "cherry", title: "체리"), FxMode(key: "sports", title: "스포츠 공"), FxMode(key: "fastfood", title: "패스트푸드"), FxMode(key: "paperplane", title: "종이비행기"),
+    FxMode(key: "cherry", title: "체리"), FxMode(key: "sports", title: "스포츠 공"), FxMode(key: "fastfood", title: "패스트푸드"),
 ]
 
 final class ScreenFX {
@@ -601,18 +599,6 @@ final class ScreenFX {
             c.setFillColor(CGColor(gray: 1, alpha: 0.3)); c.fillEllipse(in: CGRect(x: -7.8, y: 7, width: 2.6, height: 8))
         }
         let fastfood = [burger, pizza, fries, cola]
-        // 종이비행기: 코가 +x 방향. 윗날개 밝게 / 아랫날개 중간 / 가운데 접힌 면 어둡게
-        func plane(_ base: UInt32) -> CGImage { flipped { c in
-            func tri(_ pts: [CGPoint], _ k: CGFloat) {
-                let r = CGFloat((base >> 16) & 255) * k, g = CGFloat((base >> 8) & 255) * k, b = CGFloat(base & 255) * k
-                c.setFillColor(CGColor(srgbRed: min(1, r / 255), green: min(1, g / 255), blue: min(1, b / 255), alpha: 1)); c.setStrokeColor(CGColor(srgbRed: 0.27, green: 0.31, blue: 0.39, alpha: 0.6)); c.setLineWidth(0.9)
-                c.beginPath(); c.move(to: pts[0]); for q in pts.dropFirst() { c.addLine(to: q) }; c.closePath(); c.drawPath(using: .fillStroke)
-            }
-            tri([pt(18, 1), pt(-16, 12), pt(-6, 2)], 0.86); tri([pt(18, 1), pt(-6, 2), pt(-11, 7)], 0.66); tri([pt(18, 1), pt(-16, -12), pt(-6, 0)], 1.0)
-            c.setStrokeColor(CGColor(srgbRed: 0.27, green: 0.31, blue: 0.39, alpha: 0.45)); c.beginPath(); c.move(to: pt(18, 1)); c.addLine(to: pt(-6, 1)); c.strokePath()
-            c.setFillColor(CGColor(gray: 1, alpha: 0.55)); c.beginPath(); c.move(to: pt(14, -0.5)); c.addLine(to: pt(-8, -8)); c.addLine(to: pt(-4, -2)); c.closePath(); c.fillPath()
-        } }
-        let planes = [0xFFFFFF, 0xBFE3FF, 0xFFD6E7, 0xFFF2B3, 0xD8F5D0].map { plane(UInt32($0)) }
         let glint = makeImage(32) { c in
             glow(c, 0xFFFFFF, 16, 16, 8, 0.5); c.setFillColor(hex(0xFFFFFF)); c.beginPath()
             let pts = [pt(16, 32), pt(17.2, 17.2), pt(32, 16), pt(17.2, 14.8), pt(16, 0), pt(14.8, 14.8), pt(0, 16), pt(14.8, 17.2)]
@@ -644,7 +630,7 @@ final class ScreenFX {
             c.fillEllipse(in: CGRect(x: -7.5, y: -10, width: 15, height: 12))
             for (x, y) in [(-8.0, 4.0), (-3.0, 9.0), (3.0, 9.0), (8.0, 4.0)] { c.fillEllipse(in: CGRect(x: x - 3, y: y - 3.8, width: 6, height: 7.6)) }
         } }
-        return ([.clover: clovers, .leaves: leaves, .sakura: petals, .bubble: bubbles, .paws: paws, .money: notes, .cherry: [cherry], .sports: sports, .fastfood: fastfood, .paperplane: planes], glint)
+        return ([.clover: clovers, .leaves: leaves, .sakura: petals, .bubble: bubbles, .paws: paws, .money: notes, .cherry: [cherry], .sports: sports, .fastfood: fastfood], glint)
     }
 
     static func makeEmoji(_ e: String) -> CGImage {
@@ -907,7 +893,7 @@ final class App: NSObject, NSApplicationDelegate {
         updateIcon()
     }
     func updateIcon() {
-        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint", "money": "banknote", "cherry": "heart.fill", "sports": "basketball", "fastfood": "fork.knife", "paperplane": "paperplane"][fxMode] ?? "moon.zzz"
+        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint", "money": "banknote", "cherry": "heart.fill", "sports": "basketball", "fastfood": "fork.knife"][fxMode] ?? "moon.zzz"
         // 메뉴바 높이(약 24pt) 안에서 낼 수 있는 가장 큰 크기로 그린다
         let cfg = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
         let img = NSImage(systemSymbolName: sym, accessibilityDescription: "Typefall")?.withSymbolConfiguration(cfg)
