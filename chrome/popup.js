@@ -4,7 +4,7 @@
   for (const [id, ko] of [['off', '끄기'], ...self.Typefall.enabledEffects().map((e) => [e.id, e.ko])]) sel.add(new Option(ko, id));
 })();
 const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, specialKey: '', specialKeyLabel: '' };
-const LEGACY_DENSITY = { low: 'xs', midlow: 's', mid: 's', midhigh: 'm', high: 'l' }; // 이전 버전에서 저장된 값
+const LEGACY_DENSITY = self.Typefall.DENSITY_LEGACY; // 이전 버전에서 저장된 값(5단계 xs/xl 포함) → 3단계
 chrome.storage.sync.get(DEFAULTS, (v) => {
   showKey(v.specialKey, v.specialKeyLabel);
   for (const k of ['mode', 'tint', 'density', 'xmas']) {
@@ -35,4 +35,3 @@ addEventListener('keydown', (e) => {
   const label = e.key.length === 1 ? e.key.toUpperCase() : e.key;
   chrome.storage.sync.set({ specialKey: e.code, specialKeyLabel: label }); showKey(e.code, label);
 });
-
