@@ -14,13 +14,13 @@
   const pick = (a) => a[(Math.random() * a.length) | 0];
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
-  /** 효과 색상(눈 + 별가루 공통). null = 기본(별: 금/연노랑/핑크/하늘, 눈: 옅은 하늘색), 배열 = 입자마다 무작위로 섞어 씀 */
+  /** 효과 색상(눈 + 별가루 공통). null = 기본(별: 금/연노랑/핑크/하늘, 눈: 옇은 하늘색), 배열 = 입자마다 무작위로 섞어 씀 */
   const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF',
     rainbow: ['#FFB3D1', '#FFD1B3', '#FFE08A', '#B5EAD7', '#B3DEFF', '#C7B8FF'] }; // 핑크·피치·노랑·민트·스카이·라벤더
-  /** 파티클 양 단계(아주 조금/조금/보통/많이/아주 많이). 기준(기본) = m(보통) = 1.0, 높을수록 많아진다. */
-  const DENSITY = { xs: 0.3, s: 0.6, m: 1.0, l: 1.6, xl: 2.4 };
-  /** 0.1.2 이하에서 저장된 id → 같은 양의 새 id */
-  const DENSITY_LEGACY = { low: 'xs', midlow: 's', mid: 's', midhigh: 'm', high: 'l' };
+  /** 파티클 양 단계(조금/보통/많이). 예전 배율(0.6/1.0/1.6)보다 전체적으로 30% 줄였다. 기본 = m(보통). */
+  const DENSITY = { s: 0.42, m: 0.7, l: 1.12 };
+  /** 예전에 저장된 id → 새 id (5단계 xs/xl 은 가까운 끝 단계로, 0.1.2 이하 id 도 변환) */
+  const DENSITY_LEGACY = { xs: 's', xl: 'l', low: 's', midlow: 's', mid: 's', midhigh: 'm', high: 'l' };
   const normDensity = (d) => (DENSITY[d] !== undefined ? d : (DENSITY_LEGACY[d] || 'm'));
 
   const hexRgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
@@ -130,7 +130,7 @@
         x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(e, 24, 26);
       }));
     }
-    // 윤슬: 별가루 위에서 순간적으로 번쩍이는 흰 십자 반짝임
+    // 윤슬: 별가루 위에서 순간적으로 번챍이는 흰 십자 반짝임
     spr.glint = mk(32, (x) => {
       glow(x, 16, 16, [255, 255, 255], 8, 0.5);
       poly(x, [[16, 0], [17.2, 14.8], [32, 16], [17.2, 17.2], [16, 32], [14.8, 17.2], [0, 16], [14.8, 14.8]], [255, 255, 255]);
@@ -147,7 +147,7 @@
       for (let k = 0; k < 4; k++) { x.save(); x.rotate(k * Math.PI / 2); heart(x, c); x.restore(); }
       glow(x, 0, 0, [255, 255, 255], 4, 0.25);
     }));
-    const ginkgo = (c) => mk(40, (x) => {   // 은행잎(참고 이미지): 넓은 부채꼴 + 위쪽 좁고 깊은 갈라짐 + 물결 가장자리 + 촘촘한 부채살 잎맥 + 길게 휜 잎자루
+    const ginkgo = (c) => mk(40, (x) => {   // 은행잎(참고 이미지): 넓은 부채꼴 + 위쪽 좁고 깊은 갈라짐 + 물결 가장자리 + 촘촘한 부채살 잎맥 + 길게 흈 잎자루
       x.translate(20, 20); x.lineJoin = 'round'; x.lineCap = 'round';
       const leaf = () => {
         x.beginPath(); x.moveTo(0, 9);
@@ -188,7 +188,7 @@
       x.strokeStyle = `rgba(${a2},0.9)`; x.beginPath(); x.arc(0, 0, 13, st + Math.PI, st + Math.PI + 1.2); x.stroke();
       x.fillStyle = 'rgba(255,255,255,0.9)'; x.beginPath(); x.ellipse(Math.cos(hl) * 7, Math.sin(hl) * 7, 3.2 * hs, 1.8 * hs, hl + Math.PI / 2, 0, TAU); x.fill();
     }));
-    // ── 리본 🎀 / 프레첼 🥨 / 지폐 💵 (이모지 모양을 참고해 직접 그림) ──
+    // ── 리본 🎀 / 프레첨 🥨 / 지폐 💵 (이모지 모양을 참고해 직접 그림) ──
     const bow = (c) => mk(40, (x) => {   // 통통한 리본 매듭: 둥근 고리 두 개 + 땡땡이 무늬 + 짧은 꼬리
       x.translate(20, 20); x.lineJoin = 'round';
       const dark = shade(c, 0.68), mid = shade(c, 0.84), light = shade(c, 1.3);
@@ -462,7 +462,7 @@
     { id: 'paperplane', ko: '종이비행기', en: 'Paper planes', enabled: true },
     // 시안 단계(스프라이트만 있고 메뉴에는 노출하지 않음)
     { id: 'ribbon', ko: '리본', en: 'Ribbons', enabled: false },
-    { id: 'pretzel', ko: '프레첼', en: 'Pretzels', enabled: false },
+    { id: 'pretzel', ko: '프레첨', en: 'Pretzels', enabled: false },
     { id: 'strawberry', ko: '딸기', en: 'Strawberries', enabled: false },
     { id: 'carrot', ko: '당근', en: 'Carrots', enabled: false },
     { id: 'mandarin', ko: '귤', en: 'Mandarins', enabled: false },
@@ -520,7 +520,7 @@
         }
         ctx.drawImage(f.img, -f.size / 2, -f.size / 2, f.size, f.size);
         ctx.restore();
-        if (this.stars && glint) { // 윤슬: 가끔 짧게 번쩍이는 흰 십자
+        if (this.stars && glint) { // 윤슬: 가끔 짧게 번챍이는 흰 십자
           const g = Math.pow(Math.max(0, Math.sin(t * f.tw + f.phase * 3)), 24);   // 아주 짧고 은은하게
           if (g > 0.05) {
             const s = f.size * (1 + 0.5 * g);
