@@ -1,0 +1,76 @@
+name: Release & Homebrew
+
+# main 에 머지(push)되면: 버전(macos/package.sh 의 기본값)에 해당하는 태그가 아직 없을 때만
+#   macOS 앱 빌드 → GitHub Release 생성 → Homebrew tap(su-ram/homebrew-typefall) cask 갱신
+# 버전을 올리지 않은 머지는 아무것도 하지 않는다.
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'macos/**'
+      - '.github/workflows/homebrew.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: homebrew-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: ver
+        run: |
+          VER=$(sed -n 's/^VER="\${1:-\(.*\)}"$/\1/p' macos/package.sh)
+          [ -n "$VER" ] || { echo "macos/package.sh 에서 버전을 읽지 못했습니다"; exit 1; }
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          if git ls-remote --exit-code --tags origin "refs/tags/v$VER" >/dev/null 2>&1; then
+            echo "v$VER 태그가 이미 있어 릴리스를 건너뜁니다."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build and package
+        if: steps.ver.outputs.skip == 'false'
+        id: pkg
+        run: |
+          ./macos/package.sh "${{ steps.ver.outputs.version }}"
+          SHA=$(shasum -a 256 "macos/dist/Typefall-${{ steps.ver.outputs.version }}.zip" | awk '{print $1}')
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        if: steps.ver.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="${{ steps.ver.outputs.version }}"
+          gh release create "v$VER" "macos/dist/Typefall-$VER.zip" \
+            --target "$GITHUB_SHA" --title "v$VER" --generate-notes
+          # GITHUB_TOKEN 으로 만든 태그는 windows.yml 을 자동 실행하지 못하므로 직접 호출한다.
+          gh workflow run windows.yml -f tag="v$VER" || true
+
+      - name: Update Homebrew tap
+        if: steps.ver.outputs.skip == 'false'
+        env:
+          # su-ram/homebrew-typefall 에 쓰기 권한이 있는 PAT (저장소 시크릿으로 등록 필요)
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VER: ${{ steps.ver.outputs.version }}
+          SHA: ${{ steps.pkg.outputs.sha }}
+        run: |
+          [ -n "$TAP_TOKEN" ] || { echo "HOMEBREW_TAP_TOKEN 시크릿이 없습니다"; exit 1; }
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/su-ram/homebrew-typefall.git" tap
+          cd tap
+          sed -i '' -E "s/^(  version )\".*\"/\1\"$VER\"/; s/^(  sha256 )\".*\"/\1\"$SHA\"/" Casks/typefall.rb
+          git diff --stat
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "typefall $VER"
+          git push origin HEAD
