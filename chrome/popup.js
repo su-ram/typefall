@@ -35,3 +35,4 @@ addEventListener('keydown', (e) => {
   const label = e.key.length === 1 ? e.key.toUpperCase() : e.key;
   chrome.storage.sync.set({ specialKey: e.code, specialKeyLabel: label }); showKey(e.code, label);
 });
+
