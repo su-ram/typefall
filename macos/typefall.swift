@@ -348,6 +348,8 @@ let fxDensityLegacy: [String: String] = ["하": "아주 조금", "중하": "조�
 /// 화면 효과 메타데이터 (내부용, 코드로만 관리). 메뉴 목록은 여기서 만든다.
 /// enabled = false 로 두면 메뉴에서 빠지고, 저장된 설정이 그 효과를 가리키면 끄기로 취급한다.
 struct FxMode { let key: String; let title: String; var enabled = true }
+/// 랜덤: 효과를 지정하지 않으면 켜진 효과 중 하나를 무작위로 고른다
+let fxRandomKey = "random"
 let fxModes: [FxMode] = [
     FxMode(key: "snow", title: "눈"), FxMode(key: "stars", title: "별가루"), FxMode(key: "clover", title: "네잎클로버"), FxMode(key: "leaves", title: "낙엽"),
     FxMode(key: "sakura", title: "벚꽃"), FxMode(key: "bubble", title: "비눗방울"), FxMode(key: "paws", title: "고양이 발자국"), FxMode(key: "money", title: "지폐"),
@@ -369,6 +371,8 @@ final class ScreenFX {
     var snowOn = false, starsOn = false
     var natKind: FallKind? = nil          // clover / leaves / sakura 중 하나 (켜져 있을 때)
     var natFields: [SnowField] = []
+    /// 화면에 떨어지는 입자가 하나도 없으면 true (랜덤 모드에서 새 효과로 바꿔도 끊기는 입자가 없음)
+    var quiet: Bool { (snowFields + starFields + natFields).allSatisfy { $0.flakes.isEmpty && $0.dust.isEmpty } }
     let natImages: [FallKind: [CGImage]], glintImage: CGImage
     var dots: [CGImage]
     var starImages: [CGImage]
@@ -760,7 +764,7 @@ final class App: NSObject, NSApplicationDelegate {
             if !ok { fails += 1 }
             print(ok ? "PASS" : "FAIL", "선택=\(name)  저장=\(saved)  체크=\(got)")
         }
-        for (title, name) in [("끄기", "끄기"), ("눈", "눈"), ("별가루", "별가루"), ("눈", "눈")] {
+        for (title, name) in [("끄기", "끄기"), ("눈", "눈"), ("랜덤", "랜덤"), ("별가루", "별가루"), ("눈", "눈")] {
             click("화면 효과", title)
             let got = checked("화면 효과"), ok = got == [name]
             if !ok { fails += 1 }
@@ -850,6 +854,8 @@ final class App: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async { [weak self] in self?.applyFx(); self?.buildMenu() }
             return
         }
+        // 랜덤: 화면이 비어 있는 상태에서 타자를 시작하면 새 효과를 고른다(떨어지는 중인 입자는 끊지 않음)
+        if fxMode == fxRandomKey && tracker.idle && fx.quiet { pickRandom(); applyFx() }
         tracker.hit(ProcessInfo.processInfo.systemUptime)
         if let sk = specialKey, code == sk { fx.triggerChristmas() }
         // 크리스마스 단어 감지: 켜져 있을 때만, 키 위치의 진행 상태만 본다 (내용은 저장하지 않음)
@@ -868,9 +874,9 @@ final class App: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// 화면 효과는 off / snow / stars 중 하나만. (이전 버전의 fxSnow/fxStars 설정이 있으면 한 번 변환)
+    /// 화면 효과는 off / random / 효과 하나. (이전 버전의 fxSnow/fxStars 설정이 있으면 한 번 변환)
     var fxMode: String {
-        if let m = defaults.string(forKey: "fxMode") { return m == "off" || fxModes.contains(where: { $0.key == m && $0.enabled }) ? m : "off" }
+        if let m = defaults.string(forKey: "fxMode") { return m == "off" || m == fxRandomKey || fxModes.contains(where: { $0.key == m && $0.enabled }) ? m : "off" }
         return defaults.bool(forKey: "fxStars") ? "stars" : (defaults.bool(forKey: "fxSnow") ? "snow" : "off")
     }
     /// 저장된 파티클 양 이름 (예전 이름이면 새 이름으로 변환)
@@ -878,8 +884,21 @@ final class App: NSObject, NSApplicationDelegate {
         let raw = defaults.string(forKey: "fxDensity") ?? "보통"
         return fxDensityLegacy[raw] ?? raw
     }
-    func applyFx() {
+    var randomPick: String?   // 랜덤 모드에서 지금 고른 효과
+    /// 랜덤: 켜진 효과 중 하나를 고른다(가능하면 직전과 다른 것)
+    func pickRandom() {
+        let keys = fxModes.filter { $0.enabled }.map { $0.key }, others = keys.filter { $0 != randomPick }
+        randomPick = (others.isEmpty ? keys : others).randomElement()
+    }
+    /// 실제로 그릴 효과 (랜덤이면 고른 효과)
+    var currentMode: String {
         let m = fxMode
+        if m != fxRandomKey { return m }
+        if randomPick == nil { pickRandom() }
+        return randomPick ?? "off"
+    }
+    func applyFx() {
+        let m = currentMode
         let wantSnow = m == "snow", wantStars = m == "stars", wantXmas = xmasOn || specialKey != nil   // 특별 효과 키가 있으면 폭죽 레이어가 필요
         let wantNat: FallKind? = FallKind(rawValue: m).flatMap { $0 == .snow || $0 == .stars ? nil : $0 }
         let structureChanged = fx.snowOn != wantSnow || fx.starsOn != wantStars || fx.xmasOn != wantXmas || fx.natKind != wantNat
@@ -893,7 +912,7 @@ final class App: NSObject, NSApplicationDelegate {
         updateIcon()
     }
     func updateIcon() {
-        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint", "money": "banknote", "cherry": "heart.fill", "sports": "basketball", "fastfood": "fork.knife"][fxMode] ?? "moon.zzz"
+        let sym = [fxRandomKey: "shuffle", "snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint", "money": "banknote", "cherry": "heart.fill", "sports": "basketball", "fastfood": "fork.knife"][fxMode] ?? "moon.zzz"
         // 메뉴바 높이(약 24pt) 안에서 낼 수 있는 가장 큰 크기로 그린다
         let cfg = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
         let img = NSImage(systemSymbolName: sym, accessibilityDescription: "Typefall")?.withSymbolConfiguration(cfg)
@@ -910,7 +929,7 @@ final class App: NSObject, NSApplicationDelegate {
         m.addItem(.separator())
         let fxMenu = NSMenu()
         let curFx = fxMode
-        for m in [FxMode(key: "off", title: "끄기")] + fxModes where m.enabled { // 하나만 선택 가능. enabled:false 인 효과는 목록에서 뺀다
+        for m in [FxMode(key: "off", title: "끄기"), FxMode(key: fxRandomKey, title: "랜덤")] + fxModes where m.enabled { // 하나만 선택 가능. enabled:false 인 효과는 목록에서 뺀다
             let i = NSMenuItem(title: m.title, action: #selector(pickFxMode(_:)), keyEquivalent: "")
             i.target = self; i.representedObject = m.key; i.state = m.key == curFx ? .on : .off
             fxMenu.addItem(i)
@@ -968,6 +987,7 @@ final class App: NSObject, NSApplicationDelegate {
 
     @objc func pickFxMode(_ s: NSMenuItem) {
         defaults.set(s.representedObject as? String, forKey: "fxMode")
+        randomPick = nil   // 랜덤을 고르면 새로 뽑는다
         applyFx(); buildMenu()
     }
     @objc func pickTint(_ s: NSMenuItem) {
