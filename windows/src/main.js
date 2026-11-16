@@ -21,7 +21,7 @@ const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 function loadSettings() {
   try {
     const s = JSON.parse(fs.readFileSync(settingsFile(), 'utf8'));
-    if (s.mode === 'off' || core.enabledEffects().some((e) => e.id === s.mode)) settings.mode = s.mode;   // 꺼진(enabled:false) 효과를 가리키면 기본값
+    if (s.mode === 'off' || s.mode === 'random' || core.enabledEffects().some((e) => e.id === s.mode)) settings.mode = s.mode;   // 꺼진(enabled:false) 효과를 가리키면 기본값
     if (s.tint in core.TINTS) settings.tint = s.tint;
     settings.density = core.normDensity(s.density);   // 예전 값(low/midlow/…)은 같은 양의 새 값으로 변환
     if (typeof s.xmas === 'boolean') settings.xmas = s.xmas;
@@ -29,6 +29,10 @@ function loadSettings() {
     if (typeof s.loginInit === 'boolean') settings.loginInit = s.loginInit;
   } catch (_) { /* 처음 실행이거나 손상 → 기본값 */ }
 }
+// '랜덤' 모드: 켜진 효과 중 하나를 실행 시·랜덤 선택 시 무작위로 고른다 (저장값은 'random' 그대로)
+let randomPick = null;
+function rerollRandom() { const ids = core.enabledEffects().map((e) => e.id); randomPick = ids[Math.floor(Math.random() * ids.length)] || 'snow'; }
+const overlayOptions = () => ({ ...settings, mode: settings.mode === 'random' ? (randomPick || (rerollRandom(), randomPick)) : settings.mode });
 function saveSettings() {
   try { fs.mkdirSync(path.dirname(settingsFile()), { recursive: true }); fs.writeFileSync(settingsFile(), JSON.stringify(settings)); } catch (_) {}
 }
@@ -36,16 +40,16 @@ function saveSettings() {
 // ── 문구(한국어/영어) ──────────────────────────────────────────────────
 const KO = (app.getLocale() || 'en').toLowerCase().startsWith('ko');
 // 화면 효과 목록: 코어의 효과 메타데이터(enabled)에서 만든다
-const modeLabels = (lang, off) => ({ off, ...Object.fromEntries(core.enabledEffects().map((e) => [e.id, e[lang]])) });
+const modeLabels = (lang, off, random) => ({ off, random, ...Object.fromEntries(core.enabledEffects().map((e) => [e.id, e[lang]])) });
 const T = KO ? {
-  effect: '화면 효과', modes: modeLabels('ko', '끄기'),
+  effect: '화면 효과', modes: modeLabels('ko', '끄기', '랜덤'),
   tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이', rainbow: '레인보우' },
   density: '파티클 양', densities: { s: '조금', m: '보통', l: '많이' },
   xmas: '특별 효과', xmasPreview: '특별 효과 미리보기',
   specialKey: (k) => `특별 효과 키: ${k || '없음'}`, setKey: '키 지정… (다음에 누르는 키)', pressKey: '지정할 키를 누르세요…', clearKey: '지정 해제',
   login: '로그인 시 자동 실행', quit: '종료',
 } : {
-  effect: 'Effect', modes: modeLabels('en', 'Off'),
+  effect: 'Effect', modes: modeLabels('en', 'Off', 'Random'),
   tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', yellow: 'Yellow', sky: 'Sky', rainbow: 'Rainbow' },
   density: 'Particle amount', densities: { s: 'A little', m: 'Normal', l: 'A lot' },
   xmas: 'Special effect', xmasPreview: 'Preview special effect',
@@ -70,7 +74,7 @@ function createOverlay(display) {
   win.setAlwaysOnTop(true, 'screen-saver');
   win.setIgnoreMouseEvents(true, { forward: true });   // 클릭은 그대로 아래 앱으로 통과
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-  win.webContents.on('did-finish-load', () => win.webContents.send('tf', { type: 'options', options: settings }));
+  win.webContents.on('did-finish-load', () => win.webContents.send('tf', { type: 'options', options: overlayOptions() }));
   win.once('ready-to-show', () => win.showInactive());  // 포커스를 뺏지 않고 표시
   win.loadFile(path.join(__dirname, 'overlay.html'));
   overlays.set(display.id, win);
@@ -84,11 +88,11 @@ function rebuildOverlays() {
 // ── 트레이 메뉴 ────────────────────────────────────────────────────────
 let tray = null;
 let capturingKey = false;   // 메뉴에서 "키 지정"을 누른 뒤 다음 키 하나를 특별 효과 키로 저장
-function pushSettings() { saveSettings(); broadcast({ type: 'options', options: settings }); buildMenu(); }
+function pushSettings() { saveSettings(); broadcast({ type: 'options', options: overlayOptions() }); buildMenu(); }
 
 function buildMenu() {
   const radio = (obj, key, labels) => Object.keys(labels).map((v) => ({
-    label: labels[v], type: 'radio', checked: settings[key] === v, click: () => { settings[key] = v; pushSettings(); },
+    label: labels[v], type: 'radio', checked: settings[key] === v, click: () => { if (key === 'mode' && v === 'random') rerollRandom(); settings[key] = v; pushSettings(); },
   }));
   const menu = Menu.buildFromTemplate([
     { label: `Typefall ${app.getVersion()}`, enabled: false },
