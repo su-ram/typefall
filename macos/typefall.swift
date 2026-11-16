@@ -44,7 +44,7 @@ final class SnowField {
     final class Dust { let layer = CALayer(); var y = 0.0, vy = 0.0, life = 0.0, maxLife = 1.0, alpha = 1.0 }
     let root = CALayer()
     let size: CGSize
-    let kind: FallKind       // stars: 반짝이는 별가루(회전 + 깜박임 + 윤슬 + 꼬리 가루), snow: 눈송이, clover/leaves/sakura: 자연물
+    let kind: FallKind       // stars: 반짝이는 별가루(회전 + 깜빡임 + 윤슬 + 꼬리 가루), snow: 눈송이, clover/leaves/sakura: 자연물
     var stars: Bool { kind == .stars }
     /// 종류별 설정 — shared/typefall-core.js 의 FALL 과 같은 값.
     /// fade = 나타나는 시간(초), popAt = 화면 높이의 이 비율까지 내려오면 커지며 터짐
@@ -196,7 +196,7 @@ final class ChristmasFX {
         var life = 0.0, maxLife = 1.0, phase = 0.0, spin = 0.0
         var emoji = false, emojiIdx = 0
         var trail = false, trailAcc = 0.0   // 날아가며 꼬리 점을 남김
-        var sparkle = 0.0, flicker = false  // 반짝이는 가루를 흘림 / 깜박임
+        var sparkle = 0.0, flicker = false  // 반짝이는 가루를 흘림 / 깜빡임
         var drag = 1.2, size = 5.0
         var img: CGImage?
         var split = false, colorIdx = 0     // 수명이 끝나면 십자로 갈라짐
@@ -812,7 +812,7 @@ final class App: NSObject, NSApplicationDelegate {
         RunLoop.main.add(p, forMode: .common)
     }
 
-    // 키 입력 읽기엔 "입력 모니터링"(또는 "손쉽게 사용") 권한이 필요. 나중에 허용해도 재시작 없이 (재)설치한다.
+    // 키 입력 읽기엔 "입력 모니터링"(또는 "손쉬운 사용") 권한이 필요. 나중에 허용해도 재시작 없이 (재)설치한다.
     func ensureMonitor(prompt: Bool) {
         let trusted = CGPreflightListenEventAccess() || AXIsProcessTrusted()
         if !trusted && prompt && !askedOnce {
