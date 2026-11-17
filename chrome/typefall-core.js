@@ -18,7 +18,7 @@
   const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF',
     rainbow: ['#FFB3D1', '#FFD1B3', '#FFE08A', '#B5EAD7', '#B3DEFF', '#C7B8FF'] }; // 핑크·피치·노랑·민트·스카이·라벤더
   /** 파티클 양 단계(조금/보통/많이). 예전 배율(0.6/1.0/1.6)보다 전체적으로 30% 줄였다. 기본 = m(보통). */
-  const DENSITY = { s: 0.42, m: 0.7, l: 1.12 };
+  const DENSITY = { s: 0.21, m: 0.35, l: 0.56 };
   /** 예전에 저장된 id → 새 id (5단계 xs/xl 은 가까운 끝 단계로, 0.1.2 이하 id 도 변환) */
   const DENSITY_LEGACY = { xs: 's', xl: 'l', low: 's', midlow: 's', mid: 's', midhigh: 'm', high: 'l' };
   const normDensity = (d) => (DENSITY[d] !== undefined ? d : (DENSITY_LEGACY[d] || 'm'));
