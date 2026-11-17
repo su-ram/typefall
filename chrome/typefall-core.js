@@ -18,7 +18,7 @@
   const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF',
     rainbow: ['#FFB3D1', '#FFD1B3', '#FFE08A', '#B5EAD7', '#B3DEFF', '#C7B8FF'] }; // 핑크·피치·노랑·민트·스카이·라벤더
   /** 파티클 양 단계(조금/보통/많이). 예전 배율(0.6/1.0/1.6)보다 전체적으로 30% 줄였다. 기본 = m(보통). */
-  const DENSITY = { s: 0.42, m: 0.7, l: 1.12 };
+  const DENSITY = { s: 0.21, m: 0.35, l: 0.56 };
   /** 예전에 저장된 id → 새 id (5단계 xs/xl 은 가까운 끝 단계로, 0.1.2 이하 id 도 변환) */
   const DENSITY_LEGACY = { xs: 's', xl: 'l', low: 's', midlow: 's', mid: 's', midhigh: 'm', high: 'l' };
   const normDensity = (d) => (DENSITY[d] !== undefined ? d : (DENSITY_LEGACY[d] || 'm'));
@@ -397,6 +397,11 @@
     });
     spr.sports = [basketball, rugby, baseball, tennis];   // 스포츠 공 한 효과로 묶음(농구·럭비·야구·테니스)
     spr.billiards = [pool(8, '#1B1B1B'), pool(1, '#F6C42B'), pool(2, '#2457C5'), pool(3, '#D1352B'), pool(4, '#6A2C91')];
+    spr.paws = ['#8D6E63', '#F4A6B8', '#9AA5B1', '#FFB74D'].map((c) => mk(32, (x) => {
+      x.translate(16, 16); x.fillStyle = c;
+      const el = (cx, cy, rx, ry, rot) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot || 0, 0, TAU); x.fill(); };
+      el(0, 4, 7.5, 6); el(-8, -4, 3, 3.8, -0.4); el(-3, -9, 3, 3.8, -0.1); el(3, -9, 3, 3.8, 0.1); el(8, -4, 3, 3.8, 0.4);
+    }));
     // ── 종이비행기 ✈ (코가 +x 방향): 윗날개 밝게 / 아랫날개 중간 / 가운데 접힌 면 어둡게 ──
     const plane = (c) => mk(40, (x) => {
       x.translate(20, 20); x.lineJoin = 'round'; x.lineWidth = 0.9; x.strokeStyle = 'rgba(70,80,100,0.6)';
@@ -408,11 +413,6 @@
       x.fillStyle = 'rgba(255,255,255,0.55)'; x.beginPath(); x.moveTo(14, -0.5); x.lineTo(-8, -8); x.lineTo(-4, -2); x.closePath(); x.fill();
     });
     spr.planes = ['#FFFFFF', '#BFE3FF', '#FFD6E7', '#FFF2B3', '#D8F5D0'].map(plane);
-    spr.paws = ['#8D6E63', '#F4A6B8', '#9AA5B1', '#FFB74D'].map((c) => mk(32, (x) => {
-      x.translate(16, 16); x.fillStyle = c;
-      const el = (cx, cy, rx, ry, rot) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, rot || 0, 0, TAU); x.fill(); };
-      el(0, 4, 7.5, 6); el(-8, -4, 3, 3.8, -0.4); el(-3, -9, 3, 3.8, -0.1); el(3, -9, 3, 3.8, 0.1); el(8, -4, 3, 3.8, 0.4);
-    }));
     spr.emojiRepeatable = EMOJI_REPEATABLE; spr.emojiSnowflake = EMOJIS.indexOf('❄️');
     return spr;
   }
@@ -438,8 +438,8 @@
     fastfood:  { max: 30,  size: [18, 28], vy: [45, 90], drift: [15, 35], spin: [-1.5, 1.5], rot: true },
     sports:    { max: 30,  size: [16, 26], vy: [45, 90], drift: [10, 25], spin: [-2, 2], rot: true },
     billiard:  { max: 30,  size: [14, 22], vy: [45, 90], drift: [10, 25], spin: [-2, 2], rot: true },
-    paperplane: { max: 25, size: [18, 28], vy: [50, 90], drift: [40, 80], spin: [0, 0], glide: true },
     paws:      { max: 40,  size: [14, 24], vy: [40, 80], drift: [8, 20],  spin: [-0.3, 0.3], rot: true, alpha: [0.6, 0.9] },
+    paperplane: { max: 25, size: [18, 28], vy: [50, 90], drift: [40, 80], spin: [0, 0], glide: true },
   };
   const POP_TIME = 0.2;   // 방울이 터지는 시간(초)
   const NATURE_KINDS = ['clover', 'leaves', 'sakura', 'bubble', 'paws', 'ribbon', 'pretzel', 'money', 'strawberry', 'cherry', 'carrot', 'mandarin', 'tomato', 'fastfood', 'sports', 'billiard', 'paperplane'];
