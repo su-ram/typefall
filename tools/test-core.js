@@ -60,7 +60,8 @@ check('레인보우 = 파스텔 6색 배열', Array.isArray(T.TINTS.rainbow) && 
   check('단색은 눈 스프라이트 1개', tf.spr.dots.length, 1); }
 check('예전 id 변환(midhigh→m, high→l, low→s, xs→s, xl→l)', ['midhigh', 'high', 'low', 'xs', 'xl'].map(T.normDensity).join(), 'm,l,s,s,l');
 check('알 수 없는 값은 기본(m)', T.normDensity('???'), 'm');
-check('보통 배율 = 0.7(예전보다 30% 감소)', T.DENSITY.m, 0.7);
+check('보통 배율 = 0.35(#8: 이전 0.7의 절반)', T.DENSITY.m, 0.35);
+check('조금/많이도 절반(0.21/0.56)', [T.DENSITY.s, T.DENSITY.l].join(), '0.21,0.56');
 { // 이모지 규칙: 트리 3~4개(가장 많음, 화면 전체 최대 4) + 나머지는 하나씩(산타도 반복 없음), ❄️ 항상 포함
   const tf = new T.Typefall({ W: 1200, H: 800, dpr: 1, createCanvas }); const R = tf.spr.emojiRepeatable, N = tf.spr.emojis.length, SNOW = tf.spr.emojiSnowflake;
   check('목록: 사슴·양말 없음, 무스 있음', !T.EMOJIS.includes('🦌') && !T.EMOJIS.includes('🧦') && T.EMOJIS.includes('🫎'), true);
