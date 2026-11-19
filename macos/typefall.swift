@@ -37,7 +37,7 @@ func hex(_ v: UInt32) -> CGColor {
 }
 
 /// 눈/별가루: 위에서 생성되어 아래로만 떨어진다 (레이어 좌표는 y가 위로 증가 → 아래로 = y 감소)
-enum FallKind: String, CaseIterable { case snow, stars, clover, leaves, sakura, bubble, paws, money, cherry, sports, fastfood }
+enum FallKind: String, CaseIterable { case snow, stars, emoji, clover, leaves, sakura, bubble, paws, money, cherry, sports, fastfood }
 
 final class SnowField {
     final class Flake { let layer = CALayer(); let glint = CALayer(); var x = 0.0, y = 0.0, vy = 0.0, phase = 0.0, drift = 0.0, spin = 0.0, rot0 = 0.0, tw = 0.0, d = 0.0, age = 0.0, alpha = 1.0, popT: Double? = nil, popAt: Double? = nil }
@@ -55,6 +55,7 @@ final class SnowField {
     }
     var cfg: Cfg {
         switch kind {
+        case .emoji: return Cfg(max: 40, size: 20...32, vy: 45...90, drift: 15...35, spin: -1.5...1.5, rot: true)
         case .snow: return Cfg(max: 70, size: 6...14, vy: 55...100, drift: 6...20, spin: -1.5...1.5)
         case .stars: return Cfg(max: 50, size: 9...17, vy: 45...85, drift: 6...20, spin: -1.5...1.5)
         case .clover: return Cfg(max: 40, size: 11...18, vy: 40...80, drift: 15...30, spin: -1...1, rot: true)
@@ -341,15 +342,18 @@ final class ChristmasFX {
 }
 
 /// 파티클 양 단계 (눈/별가루 생성 속도와 최대 개수에 곱해짐). 예전 배율(0.6/1.0/1.6)보다 전체적으로 30% 줄였다. 기본 = "보통".
-let fxDensities: [(String, Double)] = [("조금", 0.21), ("보통", 0.35), ("많이", 0.56)]
+let fxDensities: [(String, Double)] = [("조금", 0.147), ("보통", 0.245), ("많이", 0.392)]
 /// 이전 버전에서 저장된 이름 → 새 이름 (5단계의 양 끝은 가까운 단계로, 0.1.2 이하 이름도 변환)
 let fxDensityLegacy: [String: String] = ["아주 조금": "조금", "아주 많이": "많이", "하": "조금", "중하": "조금", "중": "조금", "중상": "보통", "상": "많이"]
+
+/// 이모티콘 효과의 기본 이모티콘(사용자가 직접 입력해 바꾼다)
+let defaultEmoji = "🐱"
 
 /// 화면 효과 메타데이터 (내부용, 코드로만 관리). 메뉴 목록은 여기서 만든다.
 /// enabled = false 로 두면 메뉴에서 빠지고, 저장된 설정이 그 효과를 가리키면 끄기로 취급한다.
 struct FxMode { let key: String; let title: String; var enabled = true }
 let fxModes: [FxMode] = [
-    FxMode(key: "snow", title: "눈"), FxMode(key: "stars", title: "별가루"), FxMode(key: "clover", title: "네잎클로버"), FxMode(key: "leaves", title: "낙엽"),
+    FxMode(key: "snow", title: "눈"), FxMode(key: "emoji", title: "이모티콘"), FxMode(key: "stars", title: "별가루"), FxMode(key: "clover", title: "네잎클로버"), FxMode(key: "leaves", title: "낙엽"),
     FxMode(key: "sakura", title: "벚꽃"), FxMode(key: "bubble", title: "비눗방울"), FxMode(key: "paws", title: "고양이 발자국"), FxMode(key: "money", title: "지폐"),
     FxMode(key: "cherry", title: "체리"), FxMode(key: "sports", title: "스포츠 공"), FxMode(key: "fastfood", title: "패스트푸드"),
 ]
@@ -370,6 +374,9 @@ final class ScreenFX {
     var natKind: FallKind? = nil          // clover / leaves / sakura 중 하나 (켜져 있을 때)
     var natFields: [SnowField] = []
     let natImages: [FallKind: [CGImage]], glintImage: CGImage
+    /// 사용자가 고른 이모티콘 (이모티콘 효과)
+    var emoji = defaultEmoji { didSet { if emoji != oldValue { emojiImages = [ScreenFX.makeEmoji(emoji)] } } }
+    var emojiImages: [CGImage] = [ScreenFX.makeEmoji(defaultEmoji)]
     var dots: [CGImage]
     var starImages: [CGImage]
     var speckImages: [CGImage]
@@ -702,7 +709,7 @@ final class ScreenFX {
         for f in starFields { f.density = density; f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: starImages, trail: speckImages, glint: glintImage) }
         for f in natFields {
             f.density = density
-            f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: natImages[f.kind] ?? [])
+            f.step(dt: dt, rate: idle ? 0 : lerp(1, 4, level) * density, images: f.kind == .emoji ? emojiImages : (natImages[f.kind] ?? []))
         }
     }
 }
@@ -873,6 +880,8 @@ final class App: NSObject, NSApplicationDelegate {
         if let m = defaults.string(forKey: "fxMode") { return m == "off" || fxModes.contains(where: { $0.key == m && $0.enabled }) ? m : "off" }
         return defaults.bool(forKey: "fxStars") ? "stars" : (defaults.bool(forKey: "fxSnow") ? "snow" : "off")
     }
+    /// 저장된 이모티콘 (비어 있으면 기본값, 여러 글자면 첫 글자 덩어리만)
+    var emojiName: String { defaults.string(forKey: "fxEmoji").flatMap { $0.first.map(String.init) } ?? defaultEmoji }
     /// 저장된 파티클 양 이름 (예전 이름이면 새 이름으로 변환)
     var densityName: String {
         let raw = defaults.string(forKey: "fxDensity") ?? "보통"
@@ -886,6 +895,7 @@ final class App: NSObject, NSApplicationDelegate {
         fx.snowOn = wantSnow; fx.starsOn = wantStars; fx.xmasOn = wantXmas; fx.natKind = wantNat
         if !xmasOn { word.reset() }
         let name = defaults.string(forKey: "fxTint") ?? "기본"
+        fx.emoji = emojiName
         fx.tint = fxTints.first(where: { $0.0 == name })?.1
         let den = densityName
         fx.density = fxDensities.first(where: { $0.0 == den })?.1 ?? 1.0
@@ -893,7 +903,7 @@ final class App: NSObject, NSApplicationDelegate {
         updateIcon()
     }
     func updateIcon() {
-        let sym = ["snow": "snowflake", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint", "money": "banknote", "cherry": "heart.fill", "sports": "basketball", "fastfood": "fork.knife"][fxMode] ?? "moon.zzz"
+        let sym = ["snow": "snowflake", "emoji": "face.smiling", "stars": "sparkles", "clover": "leaf", "leaves": "leaf.fill", "sakura": "camera.macro", "bubble": "circle.dotted", "paws": "pawprint", "money": "banknote", "cherry": "heart.fill", "sports": "basketball", "fastfood": "fork.knife"][fxMode] ?? "moon.zzz"
         // 메뉴바 높이(약 24pt) 안에서 낼 수 있는 가장 큰 크기로 그린다
         let cfg = NSImage.SymbolConfiguration(pointSize: 22, weight: .regular)
         let img = NSImage(systemSymbolName: sym, accessibilityDescription: "Typefall")?.withSymbolConfiguration(cfg)
@@ -917,6 +927,10 @@ final class App: NSObject, NSApplicationDelegate {
         }
         let fxItem = NSMenuItem(title: "화면 효과", action: nil, keyEquivalent: ""); fxItem.submenu = fxMenu
         m.addItem(fxItem)
+
+        let emojiItem = NSMenuItem(title: "이모티콘 직접 입력… (현재: \(emojiName))", action: #selector(typeEmoji), keyEquivalent: "")
+        emojiItem.target = self
+        m.addItem(emojiItem)
 
         let tintMenu = NSMenu()
         let curTint = defaults.string(forKey: "fxTint") ?? "기본"
@@ -968,6 +982,28 @@ final class App: NSObject, NSApplicationDelegate {
 
     @objc func pickFxMode(_ s: NSMenuItem) {
         defaults.set(s.representedObject as? String, forKey: "fxMode")
+        applyFx(); buildMenu()
+    }
+    /// 입력창을 띄워 원하는 이모티콘을 직접 입력받는다 (이모지 키보드: ⌃⌘Space)
+    @objc func typeEmoji() {
+        let alert = NSAlert()
+        alert.messageText = "이모티콘 직접 입력"
+        alert.informativeText = "화면에 내릴 이모티콘을 입력하세요. 이모지 키보드는 ⌃⌘Space 입니다."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 28))
+        field.font = .systemFont(ofSize: 20); field.alignment = .center; field.placeholderString = "🙂"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "확인"); alert.addButton(withTitle: "취소")
+        alert.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn,
+              let e = field.stringValue.trimmingCharacters(in: .whitespaces).first.map(String.init) else { return }
+        defaults.set(e, forKey: "fxEmoji"); defaults.set("emoji", forKey: "fxMode")
+        applyFx(); buildMenu()
+    }
+    /// 이모티콘을 고르면 이모티콘 효과로 바로 전환한다
+    @objc func pickEmoji(_ s: NSMenuItem) {
+        defaults.set(s.representedObject as? String, forKey: "fxEmoji")
+        defaults.set("emoji", forKey: "fxMode")
         applyFx(); buildMenu()
     }
     @objc func pickTint(_ s: NSMenuItem) {

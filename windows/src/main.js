@@ -3,7 +3,7 @@
 //  - 전역 키 감지(uiohook-napi): 키 "내용"은 쓰지 않고 입력 신호만 오버레이로 전달
 //  - 화면마다 투명·클릭 통과 오버레이 창, 트레이 메뉴
 //  - --selftest=snow|stars|xmas --out=DIR : 화면에 띄우지 않고(offscreen) 효과를 그려 PNG 로 저장
-const { app, BrowserWindow, Tray, Menu, screen, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, screen, nativeImage, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const core = require('./typefall-core.js');
@@ -14,7 +14,7 @@ const SELFTEST = argVal('--selftest');
 const OUT_DIR = argVal('--out') || path.join(process.cwd(), 'selftest-out');
 
 // ── 설정 ───────────────────────────────────────────────────────────────
-const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, loginInit: false, specialKey: 0, specialKeyLabel: '' };  // specialKey: uiohook 키코드(0 = 사용 안 함)
+const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, loginInit: false, specialKey: 0, specialKeyLabel: '', emoji: core.DEFAULT_EMOJI };  // specialKey: uiohook 키코드(0 = 사용 안 함)
 let settings = { ...DEFAULTS };
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
 
@@ -24,6 +24,7 @@ function loadSettings() {
     if (s.mode === 'off' || s.mode === 'random' || core.enabledEffects().some((e) => e.id === s.mode)) settings.mode = s.mode;   // 꺼진(enabled:false) 효과를 가리키면 기본값
     if (s.tint in core.TINTS) settings.tint = s.tint;
     settings.density = core.normDensity(s.density);   // 예전 값(low/midlow/…)은 같은 양의 새 값으로 변환
+    if (typeof s.emoji === 'string') settings.emoji = core.firstEmoji(s.emoji);
     if (typeof s.xmas === 'boolean') settings.xmas = s.xmas;
     if (Number.isInteger(s.specialKey) && s.specialKey > 0) { settings.specialKey = s.specialKey; settings.specialKeyLabel = String(s.specialKeyLabel || '').slice(0, 20); }
     if (typeof s.loginInit === 'boolean') settings.loginInit = s.loginInit;
@@ -45,6 +46,7 @@ const T = KO ? {
   effect: '화면 효과', modes: modeLabels('ko', '끄기', '랜덤'),
   tint: '효과 색상', tints: { default: '기본', pink: '핑크', mint: '민트', lavender: '라벤더', peach: '피치', yellow: '노랑', sky: '스카이', rainbow: '레인보우' },
   density: '파티클 양', densities: { s: '조금', m: '보통', l: '많이' },
+  emoji: (e) => `이모티콘 선택: ${e}`, emojiCustom: '직접 입력…',
   xmas: '특별 효과', xmasPreview: '특별 효과 미리보기',
   specialKey: (k) => `특별 효과 키: ${k || '없음'}`, setKey: '키 지정… (다음에 누르는 키)', pressKey: '지정할 키를 누르세요…', clearKey: '지정 해제',
   login: '로그인 시 자동 실행', quit: '종료',
@@ -52,6 +54,7 @@ const T = KO ? {
   effect: 'Effect', modes: modeLabels('en', 'Off', 'Random'),
   tint: 'Color', tints: { default: 'Default', pink: 'Pink', mint: 'Mint', lavender: 'Lavender', peach: 'Peach', yellow: 'Yellow', sky: 'Sky', rainbow: 'Rainbow' },
   density: 'Particle amount', densities: { s: 'A little', m: 'Normal', l: 'A lot' },
+  emoji: (e) => `Pick emoji: ${e}`, emojiCustom: 'Type your own…',
   xmas: 'Special effect', xmasPreview: 'Preview special effect',
   specialKey: (k) => `Special effect key: ${k || 'None'}`, setKey: 'Set key… (next key you press)', pressKey: 'Press the key to use…', clearKey: 'Clear key',
   login: 'Launch at login', quit: 'Quit',
@@ -90,6 +93,23 @@ let tray = null;
 let capturingKey = false;   // 메뉴에서 "키 지정"을 누른 뒤 다음 키 하나를 특별 효과 키로 저장
 function pushSettings() { saveSettings(); broadcast({ type: 'options', options: overlayOptions() }); buildMenu(); }
 
+// 작은 입력창을 띄워 이모티콘을 직접 입력받는다 (트레이 앱이라 별도 창 사용)
+let promptWin = null;
+function promptEmoji() {
+  if (promptWin && !promptWin.isDestroyed()) { promptWin.focus(); return; }
+  promptWin = new BrowserWindow({
+    width: 320, height: 190, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true, alwaysOnTop: true,
+    title: 'Typefall', webPreferences: { preload: path.join(__dirname, 'prompt-preload.js'), contextIsolation: true, sandbox: true },
+  });
+  promptWin.setMenu(null);
+  ipcMain.once('tf-prompt', (_e, v) => {
+    if (typeof v === 'string' && v.trim()) { settings.emoji = core.firstEmoji(v); settings.mode = 'emoji'; pushSettings(); }
+    if (promptWin && !promptWin.isDestroyed()) promptWin.close();
+  });
+  promptWin.on('closed', () => { ipcMain.removeAllListeners('tf-prompt'); promptWin = null; });
+  promptWin.loadFile(path.join(__dirname, 'prompt.html'));
+}
+
 function buildMenu() {
   const radio = (obj, key, labels) => Object.keys(labels).map((v) => ({
     label: labels[v], type: 'radio', checked: settings[key] === v, click: () => { if (key === 'mode' && v === 'random') rerollRandom(); settings[key] = v; pushSettings(); },
@@ -98,6 +118,7 @@ function buildMenu() {
     { label: `Typefall ${app.getVersion()}`, enabled: false },
     { type: 'separator' },
     { label: T.effect, submenu: radio(null, 'mode', T.modes) },
+    { label: T.emoji(settings.emoji), submenu: [{ label: T.emojiCustom, click: promptEmoji }] },
     { label: T.tint, submenu: radio(null, 'tint', T.tints) },
     { label: T.density, submenu: radio(null, 'density', T.densities) },
     { type: 'separator' },

@@ -7,12 +7,17 @@
   .row { display: flex; justify-content: space-between; align-items: center; margin: 9px 0; gap: 8px; }
   select, button { font: inherit; }
   .note { font-size: 11px; opacity: .65; margin: 2px 0 0; line-height: 1.4; }
+  #emojiBox { margin: 6px 0 2px; }
+  #emojiCustom { width: 56px; font: inherit; font-size: 20px; text-align: center; }
   hr { border: 0; border-top: 1px solid #8884; margin: 12px 0; }
 </style></head>
 <body>
   <h1>❄️ Typefall</h1>
   <div class="row"><span>효과</span>
     <select id="mode"></select></div>
+  <div id="emojiBox" hidden>
+    <div class="row"><span>이모티콘</span><span><input id="emojiCustom" placeholder="🙂" aria-label="이모티콘 직접 입력"></span></div>
+  </div>
   <div class="row"><span>효과 색상</span>
     <select id="tint"><option value="default">기본</option><option value="pink">핑크</option><option value="mint">민트</option>
       <option value="lavender">라벤더</option><option value="peach">피치</option><option value="yellow">노랑</option><option value="sky">스카이</option><option value="rainbow">레인보우</option></select></div>

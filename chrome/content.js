@@ -5,7 +5,7 @@
   const TF = self.Typefall;
   const isTop = window.top === window;
   const IGNORE = new Set(['ShiftLeft', 'ShiftRight', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'MetaLeft', 'MetaRight', 'CapsLock', 'Tab', 'Escape']);
-  const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, specialKey: '', specialKeyLabel: '' };
+  const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, specialKey: '', specialKeyLabel: '', emoji: TF.DEFAULT_EMOJI };
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let settings = { ...DEFAULTS };
 

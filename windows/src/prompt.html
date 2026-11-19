@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Typefall</title>
+<style>
+  body { font: 13px/1.5 "Segoe UI", system-ui, sans-serif; margin: 16px; }
+  input { font-size: 26px; width: 100%; box-sizing: border-box; text-align: center; margin: 8px 0; }
+  .row { display: flex; justify-content: flex-end; gap: 8px; }
+  p { margin: 0; font-size: 12px; opacity: .7; }
+</style></head>
+<body>
+  <label for="e" id="msg"></label>
+  <input id="e" autofocus placeholder="🙂">
+  <p id="hint"></p>
+  <div class="row"><button id="cancel"></button><button id="ok"></button></div>
+  <script>
+    const ko = navigator.language.toLowerCase().startsWith('ko'), $ = (id) => document.getElementById(id);
+    $('msg').textContent = ko ? '화면에 내릴 이모티콘을 입력하세요' : 'Type the emoji to rain down';
+    $('hint').textContent = ko ? '이모지 입력: Win + .' : 'Emoji panel: Win + .';
+    $('ok').textContent = ko ? '확인' : 'OK'; $('cancel').textContent = ko ? '취소' : 'Cancel';
+    const done = (v) => window.tfPrompt.submit(v);
+    $('ok').onclick = () => done($('e').value);
+    $('cancel').onclick = () => done(null);
+    addEventListener('keydown', (e) => { if (e.key === 'Enter') done($('e').value); else if (e.key === 'Escape') done(null); });
+  </script>
+</body></html>
