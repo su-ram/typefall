@@ -17,8 +17,8 @@
   /** 효과 색상(눈 + 별가루 공통). null = 기본(별: 금/연노랑/핑크/하늘, 눈: 옅은 하늘색), 배열 = 입자마다 무작위로 섞어 씀 */
   const TINTS = { default: null, pink: '#FFB3D1', mint: '#B5EAD7', lavender: '#C7B8FF', peach: '#FFD1B3', yellow: '#FFE08A', sky: '#B3DEFF',
     rainbow: ['#FFB3D1', '#FFD1B3', '#FFE08A', '#B5EAD7', '#B3DEFF', '#C7B8FF'] }; // 핑크·피치·노랑·민트·스카이·라벤더
-  /** 파티클 양 단계(조금/보통/많이). 예전 배율(0.6/1.0/1.6)보다 전체적으로 30% 줄였다. 기본 = m(보통). */
-  const DENSITY = { s: 0.21, m: 0.35, l: 0.56 };
+  /** 파티클 양 단계(조금/보통/많이). 예전 배율(0.6/1.0/1.6) 대비 s·m·l = 0.147/0.245/0.392 (두 차례 감소: 절반, 이어서 30%). 기본 = m(보통). */
+  const DENSITY = { s: 0.147, m: 0.245, l: 0.392 };
   /** 예전에 저장된 id → 새 id (5단계 xs/xl 은 가까운 끝 단계로, 0.1.2 이하 id 도 변환) */
   const DENSITY_LEGACY = { xs: 's', xl: 'l', low: 's', midlow: 's', mid: 's', midhigh: 'm', high: 'l' };
   const normDensity = (d) => (DENSITY[d] !== undefined ? d : (DENSITY_LEGACY[d] || 'm'));
@@ -84,8 +84,17 @@
   const EMOJIS = ['🎄', '🎅', '🤶', '🎁', '⛄', '🔔', '⭐', '🫎', '🍪', '❄️'];
   const EMOJI_REPEATABLE = 1, MAX_TREES = 4;
   const XMAS_COLORS = ['#FF3B4E', '#2EC866']; // 빨강, 초록
+  /** "이모티콘" 효과의 기본 이모티콘(사용자가 직접 입력해 바꾼다) */
+  const DEFAULT_EMOJI = '🐱';
+  /** 입력에서 첫 이모티콘(글자 한 덩어리)만 꺼낸다. 비어 있으면 기본값. */
+  const firstEmoji = (s) => {
+    s = String(s == null ? '' : s).trim();
+    if (!s) return DEFAULT_EMOJI;
+    if (typeof Intl !== 'undefined' && Intl.Segmenter) { for (const g of new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(s)) return g.segment; }
+    return Array.from(s)[0];
+  };
 
-  function buildSprites(createCanvas, dpr, tint) {
+  function buildSprites(createCanvas, dpr, tint, emoji) {
     const mk = (size, draw) => {
       const c = createCanvas(Math.round(size * dpr), Math.round(size * dpr));
       const x = c.getContext('2d'); x.scale(dpr, dpr); draw(x); return c;
@@ -130,6 +139,11 @@
         x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(e, 24, 26);
       }));
     }
+    // 사용자가 고른 이모티콘 (이모티콘 효과)
+    spr.custom = [mk(48, (x) => {
+      x.font = '38px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+      x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText(firstEmoji(emoji), 24, 26);
+    })];
     // 윤슬: 별가루 위에서 순간적으로 번쩍이는 흰 십자 반짝임
     spr.glint = mk(32, (x) => {
       glow(x, 16, 16, [255, 255, 255], 8, 0.5);
@@ -422,6 +436,7 @@
   const FALL = {
     snow:   { max: 70, size: [6, 14],  vy: [55, 100], drift: [6, 20],  spin: [-1.5, 1.5] },
     stars:  { max: 50, size: [9, 17],  vy: [45, 85],  drift: [6, 20],  spin: [-1.5, 1.5] },
+    emoji:  { max: 40, size: [20, 32], vy: [45, 90], drift: [15, 35], spin: [-1.5, 1.5], rot: true },
     clover: { max: 40, size: [11, 18], vy: [40, 80],  drift: [15, 30], spin: [-1, 1], rot: true },
     leaves: { max: 40, size: [16, 28], vy: [50, 95],  drift: [30, 60], spin: [-2, 2], rot: true, flip: true },
     sakura: { max: 70, size: [9, 16],  vy: [30, 60],  drift: [25, 50], spin: [-1.5, 1.5], rot: true, flip: true },
@@ -442,13 +457,14 @@
     paws:      { max: 40,  size: [14, 24], vy: [40, 80], drift: [8, 20],  spin: [-0.3, 0.3], rot: true, alpha: [0.6, 0.9] },
   };
   const POP_TIME = 0.2;   // 방울이 터지는 시간(초)
-  const NATURE_KINDS = ['clover', 'leaves', 'sakura', 'bubble', 'paws', 'ribbon', 'pretzel', 'money', 'strawberry', 'cherry', 'carrot', 'mandarin', 'tomato', 'fastfood', 'sports', 'billiard', 'paperplane'];
+  const NATURE_KINDS = ['emoji', 'clover', 'leaves', 'sakura', 'bubble', 'paws', 'ribbon', 'pretzel', 'money', 'strawberry', 'cherry', 'carrot', 'mandarin', 'tomato', 'fastfood', 'sports', 'billiard', 'paperplane'];
   /**
    * 효과 메타데이터 (내부용, 코드로만 관리). 메뉴·팝업의 효과 목록은 여기서 만든다.
    * enabled: false 로 두면 목록에서 빠진다(시안·보류 효과). 저장된 설정이 꺼진 효과를 가리키면 끄기로 취급.
    */
   const EFFECTS = [
     { id: 'snow', ko: '눈', en: 'Snow', enabled: true },
+    { id: 'emoji', ko: '이모티콘', en: 'Emoji', enabled: true },
     { id: 'stars', ko: '별가루', en: 'Stardust', enabled: true },
     { id: 'clover', ko: '네잎클로버', en: 'Four-leaf clover', enabled: true },
     { id: 'leaves', ko: '낙엽', en: 'Autumn leaves', enabled: true },
@@ -630,23 +646,25 @@
     constructor(o = {}) {
       this.createCanvas = o.createCanvas || ((w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; });
       this.W = o.W || 800; this.H = o.H || 600; this.dpr = o.dpr || 1;
-      this.opts = { mode: 'snow', tint: 'default', density: 'm', xmas: false, specialKey: '' }; // specialKey: 이 키를 누르면 크리스마스 효과(빈 값 = 사용 안 함)
+      this.opts = { mode: 'snow', tint: 'default', density: 'm', xmas: false, specialKey: '', emoji: DEFAULT_EMOJI }; // specialKey: 이 키를 누르면 크리스마스 효과(빈 값 = 사용 안 함)
       this.tracker = new TypingTracker(); this.word = new WordTrigger();
       this.snow = new Falling('snow'); this.starsF = new Falling('stars'); this.xmas = new Christmas();
       this.nature = {};
       for (const k of NATURE_KINDS) this.nature[k] = new Falling(k);
-      this.spr = buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint]);
+      this.spr = this._sprites();
     }
-    /** {mode, tint, density, xmas, specialKey} 일부만 넘겨도 됨 */
+    _sprites() { return buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint], this.opts.emoji); }
+    /** {mode, tint, density, xmas, specialKey, emoji} 일부만 넘겨도 됨 */
     setOptions(o) {
-      const prevTint = this.opts.tint;
+      const prevTint = this.opts.tint, prevEmoji = this.opts.emoji;
       Object.assign(this.opts, o);
-      if (this.opts.tint !== prevTint) this.spr = buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint]);
+      this.opts.emoji = firstEmoji(this.opts.emoji);
+      if (this.opts.tint !== prevTint || this.opts.emoji !== prevEmoji) this.spr = this._sprites();
       if (!this.opts.xmas) this.word.reset();
     }
     resize(W, H, dpr) {
       this.W = W; this.H = H;
-      if (dpr && dpr !== this.dpr) { this.dpr = dpr; this.spr = buildSprites(this.createCanvas, this.dpr, TINTS[this.opts.tint]); }
+      if (dpr && dpr !== this.dpr) { this.dpr = dpr; this.spr = this._sprites(); }
     }
     hit(now) { this.tracker.hit(now === undefined ? performance.now() : now); }
     /** 키 하나(event.code). 지정 키는 항상, 크리스마스 단어는 켜져 있을 때만 본다. 감지되면 true */
@@ -669,7 +687,7 @@
       const den = DENSITY[normDensity(this.opts.density)] || 1, m = this.opts.mode;
       this.snow.step(dt, m === 'snow' && !idle ? lerp(1, 5, lv) * den : 0, this.W, this.H, den, this.spr.dots, []);
       this.starsF.step(dt, m === 'stars' && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, this.spr.stars, this.spr.specks);
-      const imgs = { clover: this.spr.clovers, leaves: this.spr.leaves, sakura: this.spr.petals, bubble: this.spr.bubbles, paws: this.spr.paws, ribbon: this.spr.ribbons, pretzel: this.spr.pretzels, money: this.spr.bills,
+      const imgs = { emoji: this.spr.custom, clover: this.spr.clovers, leaves: this.spr.leaves, sakura: this.spr.petals, bubble: this.spr.bubbles, paws: this.spr.paws, ribbon: this.spr.ribbons, pretzel: this.spr.pretzels, money: this.spr.bills,
         strawberry: this.spr.strawberries, cherry: this.spr.cherries, carrot: this.spr.carrots, mandarin: this.spr.mandarins, tomato: this.spr.tomatoes, fastfood: this.spr.fastfood,
         sports: this.spr.sports, billiard: this.spr.billiards, paperplane: this.spr.planes };
       for (const k in this.nature) this.nature[k].step(dt, m === k && !idle ? lerp(1, 4, lv) * den : 0, this.W, this.H, den, imgs[k], []);
@@ -684,7 +702,7 @@
     }
   }
 
-  const api = { Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, EMOJIS, NATURE_KINDS, EFFECTS, enabledEffects, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
+  const api = { DEFAULT_EMOJI, firstEmoji, Typefall, TypingTracker, WordTrigger, Falling, Christmas, buildSprites, EMOJIS, NATURE_KINDS, EFFECTS, enabledEffects, TINTS, DENSITY, DENSITY_LEGACY, normDensity, XMAS_PATTERNS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Typefall = api;
 })(typeof self !== 'undefined' ? self : this);

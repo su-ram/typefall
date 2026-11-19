@@ -3,10 +3,20 @@
   const sel = document.getElementById('mode');
   for (const [id, ko] of [['off', '끄기'], ...self.Typefall.enabledEffects().map((e) => [e.id, e.ko])]) sel.add(new Option(ko, id));
 })();
-const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, specialKey: '', specialKeyLabel: '' };
+const DEFAULTS = { mode: 'snow', tint: 'default', density: 'm', xmas: true, specialKey: '', specialKeyLabel: '', emoji: self.Typefall.DEFAULT_EMOJI };
 const LEGACY_DENSITY = self.Typefall.DENSITY_LEGACY; // 이전 버전에서 저장된 값(5단계 xs/xl 포함) → 3단계
+// 이모티콘 효과: 목록에서 고르거나 직접 입력한 이모티콘이 효과로 내린다
+const emojiBox = document.getElementById('emojiBox'), emojiCustom = document.getElementById('emojiCustom');
+function setEmoji(raw) {
+  const e = self.Typefall.firstEmoji(raw);
+  chrome.storage.sync.set({ emoji: e }); emojiCustom.value = e;
+}
+emojiCustom.addEventListener('change', () => { if (emojiCustom.value.trim()) setEmoji(emojiCustom.value); });
+document.getElementById('mode').addEventListener('change', (e) => { emojiBox.hidden = e.target.value !== 'emoji'; });
+
 chrome.storage.sync.get(DEFAULTS, (v) => {
   showKey(v.specialKey, v.specialKeyLabel);
+  emojiCustom.value = self.Typefall.firstEmoji(v.emoji); emojiBox.hidden = v.mode !== 'emoji';
   for (const k of ['mode', 'tint', 'density', 'xmas']) {
     const el = document.getElementById(k);
     if (el.type === 'checkbox') el.checked = v[k]; else el.value = (k === 'density' && LEGACY_DENSITY[v[k]]) || v[k];

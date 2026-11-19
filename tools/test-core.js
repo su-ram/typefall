@@ -58,10 +58,21 @@ check('레인보우 = 파스텔 6색 배열', Array.isArray(T.TINTS.rainbow) && 
   check('레인보우 시뮬레이션 정상', tf.starsF.count > 0, true); }
 { const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas }); tf.setOptions({ tint: 'mint' });
   check('단색은 눈 스프라이트 1개', tf.spr.dots.length, 1); }
+// 이모티콘 효과: 고른 이모티콘이 스프라이트로 만들어져 떨어진다
+check('이모티콘 효과 목록에 노출', T.enabledEffects().some((e) => e.id === 'emoji'), true);
+check('firstEmoji: 첫 글자 덩어리만', [T.firstEmoji('🐱🐶'), T.firstEmoji('  🌸 x'), T.firstEmoji('👨‍👩‍👧')].join(), Intl.Segmenter ? '🐱,🌸,👨‍👩‍👧' : '🐱,🌸,👨');
+check('firstEmoji: 빈 값은 기본값', [T.firstEmoji(''), T.firstEmoji(null)].join(), T.DEFAULT_EMOJI + ',' + T.DEFAULT_EMOJI);
+{ const drawn = []; const cc = (w, h) => ({ width: w, height: h, getContext: () => new Proxy({}, { get: (t, k) => (k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : k === 'fillText' ? (s) => drawn.push(s) : () => {}), set: () => true }) });
+  const tf = new T.Typefall({ W: 800, H: 600, dpr: 1, createCanvas: cc });
+  tf.setOptions({ mode: 'emoji', emoji: '🦄' }); check('고른 이모티콘으로 스프라이트 생성', drawn.includes('🦄') && tf.spr.custom.length === 1, true);
+  tf.setOptions({ emoji: '🍕' }); check('이모티콘 변경 시 스프라이트 재생성', drawn.includes('🍕'), true);
+  let t = 0, peak = 0; for (let i = 0; i < 600; i++) { t += 16; if (i % 6 === 0) tf.hit(t); tf.update(0.016, t); tf.draw(ctx); peak = Math.max(peak, tf.nature.emoji.count); }
+  check('이모티콘 입자가 내림(≤40)', peak, (v) => v > 0 && v <= 40);
+  for (let i = 0; i < 2400; i++) { t += 16; tf.update(0.016, t); } check('방치 후 active=false', tf.active, false); }
 check('예전 id 변환(midhigh→m, high→l, low→s, xs→s, xl→l)', ['midhigh', 'high', 'low', 'xs', 'xl'].map(T.normDensity).join(), 'm,l,s,s,l');
 check('알 수 없는 값은 기본(m)', T.normDensity('???'), 'm');
-check('보통 배율 = 0.35(#8: 이전 0.7의 절반)', T.DENSITY.m, 0.35);
-check('조금/많이도 절반(0.21/0.56)', [T.DENSITY.s, T.DENSITY.l].join(), '0.21,0.56');
+check('보통 배율 = 0.245(이전 0.35에서 30% 감소)', T.DENSITY.m, 0.245);
+check('조금/많이도 30% 감소(0.147/0.392)', [T.DENSITY.s, T.DENSITY.l].join(), '0.147,0.392');
 { // 이모지 규칙: 트리 3~4개(가장 많음, 화면 전체 최대 4) + 나머지는 하나씩(산타도 반복 없음), ❄️ 항상 포함
   const tf = new T.Typefall({ W: 1200, H: 800, dpr: 1, createCanvas }); const R = tf.spr.emojiRepeatable, N = tf.spr.emojis.length, SNOW = tf.spr.emojiSnowflake;
   check('목록: 사슴·양말 없음, 무스 있음', !T.EMOJIS.includes('🦌') && !T.EMOJIS.includes('🧦') && T.EMOJIS.includes('🫎'), true);
